@@ -3,9 +3,11 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
+  # Bind to all interfaces so other containers can reach Loki
+  http_listen_address: 0.0.0.0
 
 common:
-  instance_addr: 127.0.0.1
+  instance_addr: 0.0.0.0
   path_prefix: /loki
   storage:
     filesystem:
@@ -34,8 +36,11 @@ schema_config:
         period: 24h
 
 ruler:
-  alertmanager_url: http://localhost:9093
+  alertmanager_url: http://alertmanager:9093
 
-# By default, Loki will send anonymous usage data to Grafana Labs. To disable, uncomment the following line:
-# analytics:
-#   reporting_enabled: false
+limits_config:
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h   # 7 days
+
+analytics:
+  reporting_enabled: false

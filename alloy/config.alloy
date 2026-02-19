@@ -1,25 +1,66 @@
+// Grafana Alloy configuration
+// Collects system logs and Docker container logs, forwards to Loki
 
 logging {
-  level = "info"
+  level  = "info"
   format = "logfmt"
 }
 
+// ── Loki destination ──────────────────────────────────────────────────────────
+
 loki.write "local" {
   endpoint {
-    url = "http://localhost:3100/loki/api/v1/push"
+    url = "http://loki:3100/loki/api/v1/push"
   }
 }
 
+// ── System log collection ─────────────────────────────────────────────────────
+
 local.file_match "system_logs" {
   path_targets = [
-    {"__path__" = "/var/log/*.log"},
-    {"__path__" = "/var/log/**/*.log"},
-    {"__path__" = "/var/log/syslog"},
-    {"__path__" = "/var/log/auth.log"},
+    {"__path__" = "/var/log/*.log",    "job" = "system"},
+    {"__path__" = "/var/log/**/*.log", "job" = "system"},
+    {"__path__" = "/var/log/syslog",   "job" = "syslog"},
+    {"__path__" = "/var/log/auth.log", "job" = "auth"},
   ]
 }
 
 loki.source.file "system_logs" {
   targets    = local.file_match.system_logs.targets
   forward_to = [loki.write.local.receiver]
+}
+
+// ── Docker container log collection ──────────────────────────────────────────
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_containers" {
+  targets = discovery.docker.containers.targets
+
+  // Use container name as the job label
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  // Use image name for easy filtering
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "docker"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_containers.output
+  forward_to = [loki.write.local.receiver]
+  relabel_rules = discovery.relabel.docker_containers.rules
 }
