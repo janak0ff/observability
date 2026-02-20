@@ -38,8 +38,8 @@ scrape_configs:
 
   # ----------------------------------------
   # Node Exporter — Production cloud servers
-  # Each server must have node_exporter running on port 9100
-  # Add all server IPs in .env as CLIENT_NODE_1, CLIENT_NODE_2, etc.
+  # Each server must have node_exporter running on port 9100.
+  # Add server IPs in .env as CLIENT_NODE_1, CLIENT_NODE_2, etc.
   # ----------------------------------------
   - job_name: 'node_exporter'
     scrape_interval: 30s
@@ -48,10 +48,10 @@ scrape_configs:
       - targets:
           - '${CLIENT_NODE_1}'
           - '${CLIENT_NODE_2}'
-          # Add more nodes via .env variables:
+          # Add more nodes via .env:
           # - '${CLIENT_NODE_3}'
     relabel_configs:
-      # Use only the hostname part (not :9100) as the instance label
+      # Use only hostname (strip :9100) as the instance label
       - source_labels: [__address__]
         regex: '([^:]+):.*'
         target_label: instance
