@@ -1,0 +1,71 @@
+global:
+  resolve_timeout: 5m
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+  smtp_smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+  smtp_from: '${SMTP_FROM}'
+  smtp_auth_username: '${SMTP_USERNAME}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default-receiver'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      continue: true
+    - match:
+        severity: warning
+      receiver: 'warning-receiver'
+    - match:
+        team: operations
+      receiver: 'ops-receiver'
+    - match:
+        team: applications
+      receiver: 'app-receiver'
+
+receivers:
+  - name: 'default-receiver'
+    email_configs:
+      - to: '${DEFAULT_ALERT_EMAIL}'
+        html: '{{ template "email.default.html" . }}'
+        headers:
+          subject: '{{ template "email.default.subject" . }}'
+
+  - name: 'critical-receiver'
+    email_configs:
+      - to: '${CRITICAL_ALERT_EMAIL}'
+        html: '{{ template "email.critical.html" . }}'
+        headers:
+          subject: '[CRITICAL] {{ template "email.default.subject" . }}'
+    slack_configs:
+      - channel: '#critical-alerts'
+        title: '{{ template "slack.default.title" . }}'
+        text: '{{ template "slack.default.text" . }}'
+        send_resolved: true
+
+  - name: 'warning-receiver'
+    email_configs:
+      - to: '${WARNING_ALERT_EMAIL}'
+        html: '{{ template "email.default.html" . }}'
+
+  - name: 'ops-receiver'
+    slack_configs:
+      - channel: '#ops-alerts'
+        title: '{{ template "slack.default.title" . }}'
+        text: '{{ template "slack.default.text" . }}'
+        send_resolved: true
+
+  - name: 'app-receiver'
+    slack_configs:
+      - channel: '#app-alerts'
+        title: '{{ template "slack.default.title" . }}'
+        text: '{{ template "slack.default.text" . }}'
+        send_resolved: true

@@ -1,0 +1,66 @@
+groups:
+  - name: node_alerts
+    interval: 30s
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: operations
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "{{ $labels.instance }} has been down for more than 5 minutes."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: operations
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% for more than 10 minutes."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: operations
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85% for more than 10 minutes."
+
+      - alert: DiskSpaceRunningLow
+        expr: (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          team: operations
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is below 10% on {{ $labels.device }}"
+
+  - name: application_alerts
+    interval: 30s
+    rules:
+      - alert: HighTraffic
+        expr: rate(nginx_http_requests_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: applications
+        annotations:
+          summary: "High traffic detected on {{ $labels.instance }}"
+          description: "Request rate is above 1000 requests/second"
+
+      - alert: JenkinsBuildFailures
+        expr: rate(jenkins_job_build_failure_count[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: ci-cd
+        annotations:
+          summary: "Jenkins build failures detected"
+          description: "Build failures are occurring on Jenkins instance"

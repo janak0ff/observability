@@ -1,0 +1,69 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'observability-monitor'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - '/etc/prometheus/rules/alert-rules.yml'
+  - '/etc/prometheus/rules/record-rules.yml'
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+    scheme: http
+
+  # Node Exporter - Client nodes
+  - job_name: 'node_exporter_clients'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets:
+          - ${CLIENT_NODE_1}
+          - ${CLIENT_NODE_2}
+          - ${CLIENT_NODE_3}
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '([^:]+):.*'
+        target_label: instance
+        replacement: '${1}'
+      - source_labels: [__address__]
+        regex: '.*'
+        target_label: node
+        replacement: 'client'
+
+  # Alloy for logs
+  - job_name: 'alloy_clients'
+    static_configs:
+      - targets: ['client1:12345', 'client2:12345', 'client3:12345']
+    metrics_path: /metrics
+
+  # Process Exporter
+  - job_name: 'process_exporter'
+    static_configs:
+      - targets: ['client1:9256', 'client2:9256', 'client3:9256']
+
+  # Blackbox Exporter (for external endpoints)
+  - job_name: 'blackbox_http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://example.com
+          - https://api.example.com
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

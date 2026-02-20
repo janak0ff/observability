@@ -1,0 +1,54 @@
+process_names:
+  # Match by process name
+  - name: "{{.Comm}}"
+    cmdline:
+      - '.+'
+  
+  # Java processes
+  - name: "java-{{.Matches.JavaApp}}"
+    cmdline:
+      - 'java.*-Dapp=(?P<JavaApp>\S+)'
+  
+  # Nginx
+  - name: "nginx"
+    cmdline:
+      - 'nginx'
+  
+  # Jenkins
+  - name: "jenkins"
+    cmdline:
+      - 'java.*jenkins'
+  
+  # PostgreSQL
+  - name: "postgres"
+    cmdline:
+      - 'postgres'
+  
+  # MySQL
+  - name: "mysql"
+    cmdline:
+      - 'mysql'
+  
+  # Redis
+  - name: "redis"
+    cmdline:
+      - 'redis-server'
+  
+  # Docker
+  - name: "docker"
+    cmdline:
+      - 'dockerd'
+  
+  # SSH daemon
+  - name: "sshd"
+    cmdline:
+      - 'sshd'
+  
+  # CRON
+  - name: "cron"
+    cmdline:
+      - 'cron'
+      - 'crond'
+
+# Exporter configuration
+procfs: /proc

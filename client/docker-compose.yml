@@ -1,0 +1,131 @@
+version: '3.8'
+
+networks:
+  observability:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+services:
+  # Node Exporter - System metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    networks:
+      - observability
+
+  # Alloy for log collection
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    restart: unless-stopped
+    volumes:
+      - ./configs/config.alloy:/etc/alloy/config.alloy
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    ports:
+      - "${ALLOY_PORT:-12345}:12345"
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    networks:
+      - observability
+    environment:
+      - LOKI_URL=${LOKI_URL:-http://server:3100/loki/api/v1/push}
+      - HOSTNAME=${HOSTNAME:-client}
+
+  # Process Exporter
+  process-exporter:
+    image: ncabatoff/process-exporter:latest
+    container_name: process-exporter
+    restart: unless-stopped
+    volumes:
+      - ./configs/process-exporter/process.yml:/config/process.yml
+      - /proc:/host/proc:ro
+    command:
+      - '-procfs=/host/proc'
+      - '-config.path=/config/process.yml'
+    ports:
+      - "${PROCESS_EXPORTER_PORT:-9256}:9256"
+    networks:
+      - observability
+
+  # Additional Exporters (enable as needed)
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx-exporter
+    restart: unless-stopped
+    command:
+      - '-nginx.scrape-uri=${NGINX_STATUS_URL:-http://nginx:80/status}'
+    ports:
+      - "${NGINX_EXPORTER_PORT:-9113}:9113"
+    networks:
+      - observability
+    profiles:
+      - nginx
+
+  jenkins-exporter:
+    image: bitnami/jenkins-exporter:latest
+    container_name: jenkins-exporter
+    restart: unless-stopped
+    environment:
+      - JENKINS_URI=${JENKINS_URL:-http://jenkins:8080}
+      - JENKINS_USER=${JENKINS_USER}
+      - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+    ports:
+      - "${JENKINS_EXPORTER_PORT:-8080}:8080"
+    networks:
+      - observability
+    profiles:
+      - jenkins
+
+  # postgres-exporter:
+  #   image: prometheuscommunity/postgres-exporter:latest
+  #   container_name: postgres-exporter
+  #   restart: unless-stopped
+  #   environment:
+  #     - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable
+  #   ports:
+  #     - "${POSTGRES_EXPORTER_PORT:-9187}:9187"
+  #   networks:
+  #     - observability
+  #   profiles:
+  #     - postgres
+
+  # mysql-exporter:
+  #   image: prom/mysqld-exporter:latest
+  #   container_name: mysql-exporter
+  #   restart: unless-stopped
+  #   environment:
+  #     - DATA_SOURCE_NAME=${MYSQL_USER}:${MYSQL_PASSWORD}@(${MYSQL_HOST}:${MYSQL_PORT})/
+  #   ports:
+  #     - "${MYSQL_EXPORTER_PORT:-9104}:9104"
+  #   networks:
+  #     - observability
+  #   profiles:
+  #     - mysql
+
+  # redis-exporter:
+  #   image: oliver006/redis_exporter:latest
+  #   container_name: redis-exporter
+  #   restart: unless-stopped
+  #   environment:
+  #     - REDIS_ADDR=${REDIS_HOST}:${REDIS_PORT}
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD}
+  #   ports:
+  #     - "${REDIS_EXPORTER_PORT:-9121}:9121"
+  #   networks:
+  #     - observability
+  #   profiles:
+  #     - redis

@@ -1,0 +1,105 @@
+// Alloy configuration for log collection and metrics
+
+// Log collection from various sources
+loki.source.file "log_files" {
+  targets = [
+    {__path__ = "/var/log/syslog"},
+    {__path__ = "/var/log/auth.log"},
+    {__path__ = "/var/log/nginx/*.log"},
+    {__path__ = "/var/log/application/*.log"},
+    {__path__ = "/var/log/jenkins/*.log"},
+  ]
+  forward_to = [loki.process.filter_logs.receiver]
+}
+
+// Process and filter logs
+loki.process "filter_logs" {
+  forward_to = [loki.write.server.receiver]
+  
+  // Add labels
+  stage.static_labels {
+    values = {
+      host = env("HOSTNAME"),
+      environment = "production",
+      collector = "alloy",
+    }
+  }
+  
+  // Parse JSON logs if present
+  stage.json {
+    expressions = {
+      level = "",
+      message = "",
+      timestamp = "",
+    }
+    source = "log_line"
+  }
+  
+  // Extract timestamp if available
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339"
+  }
+  
+  // Drop debug logs
+  stage.drop {
+    source = "level"
+    value = "debug"
+  }
+}
+
+// Send logs to Loki
+loki.write "server" {
+  endpoint {
+    url = env("LOKI_URL")
+    
+    // Add basic authentication if needed
+    // basic_auth {
+    //   username = "username"
+    //   password = "password"
+    // }
+    
+    // Add tenant ID if using multi-tenancy
+    // headers = {
+    //   "X-Scope-OrgID": "tenant1",
+    // }
+  }
+  
+  external_labels = {
+    host = env("HOSTNAME"),
+    job = "alloy",
+  }
+}
+
+// Prometheus metrics endpoint
+prometheus.exporter.unix "system" {
+  include_exporter_metrics = true
+  
+  // Collect additional metrics
+  filesystem {
+    mount_points_exclude = "^/(dev|proc|sys|run|var/lib/docker)($|/)"
+    fs_types_exclude = "^tmpfs$|^autofs$|^binfmt_misc$|^cgroup$|^debugfs$|^devpts$|^devtmpfs$|^fusectl$|^hugetlbfs$|^mqueue$|^nsfs$|^overlay$|^proc$|^procfs$|^pstore$|^rpc_pipefs$|^securityfs$|^sockfs$|^sysfs$|^tracefs$"
+  }
+}
+
+// Scrape Docker container metrics
+prometheus.scrape "docker" {
+  targets = [
+    {"__address__" = "localhost:9323", "job" = "docker"},
+  ]
+  forward_to = [prometheus.remote_write.metrics.receiver]
+  scrape_interval = "30s"
+}
+
+// Remote write to Prometheus
+prometheus.remote_write "metrics" {
+  endpoint {
+    url = "http://${PROMETHEUS_SERVER:-192.168.1.100:9090}/api/v1/write"
+    
+    // Add authentication if needed
+    // basic_auth {
+    //   username = "username"
+    //   password = "password"
+    // }
+  }
+}

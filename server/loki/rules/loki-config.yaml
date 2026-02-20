@@ -3,11 +3,8 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
-  # Bind to all interfaces so other containers can reach Loki
-  http_listen_address: 0.0.0.0
 
 common:
-  instance_addr: 0.0.0.0
   path_prefix: /loki
   storage:
     filesystem:
@@ -15,22 +12,16 @@ common:
       rules_directory: /loki/rules
   replication_factor: 1
   ring:
+    instance_addr: 127.0.0.1
     kvstore:
       store: inmemory
-
-query_range:
-  results_cache:
-    cache:
-      embedded_cache:
-        enabled: true
-        max_size_mb: 100
 
 schema_config:
   configs:
     - from: 2020-10-24
-      store: tsdb
+      store: boltdb-shipper
       object_store: filesystem
-      schema: v13
+      schema: v11
       index:
         prefix: index_
         period: 24h
@@ -39,8 +30,17 @@ ruler:
   alertmanager_url: http://alertmanager:9093
 
 limits_config:
+  enforce_metric_name: false
   reject_old_samples: true
-  reject_old_samples_max_age: 168h   # 7 days
+  reject_old_samples_max_age: 168h
 
-analytics:
-  reporting_enabled: false
+chunk_store_config:
+  max_look_back_period: 0s
+
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 720h
+
+compactor:
+  working_directory: /loki/compactor
+  shared_store: filesystem
