@@ -1,10 +1,40 @@
 // Alloy configuration for log collection and metrics
 
-// Log collection from various sources
-loki.source.file "log_files" {
-  targets = [
-    {__path__ = "/var/lib/docker/containers/*/*.log", "job" = "docker_containers"},
-  ]
+// Log collection from Docker Daemon
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "app"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "job"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+loki.source.docker "docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
   forward_to = [loki.process.filter_logs.receiver]
 }
 

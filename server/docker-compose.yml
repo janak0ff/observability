@@ -21,6 +21,7 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
       - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     networks:
