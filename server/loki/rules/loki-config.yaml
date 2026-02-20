@@ -3,13 +3,10 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
+  log_level: info
 
 common:
   path_prefix: /loki
-  storage:
-    filesystem:
-      chunks_directory: /loki/chunks
-      rules_directory: /loki/rules
   replication_factor: 1
   ring:
     instance_addr: 127.0.0.1
@@ -20,27 +17,141 @@ schema_config:
   configs:
     - from: 2020-10-24
       store: boltdb-shipper
+      # ============================================
+      # OPTION 1: LOCAL FILESYSTEM STORAGE (DEFAULT)
+      # ============================================
       object_store: filesystem
+      
+      # ============================================
+      # OPTION 2: AWS S3 STORAGE (COMMENTED OUT)
+      # ============================================
+      # object_store: s3
+      # ============================================
       schema: v11
       index:
-        prefix: index_
+        prefix: loki_index_
         period: 24h
 
-ruler:
-  alertmanager_url: http://alertmanager:9093
+# ============================================
+# STORAGE CONFIGURATION
+# ============================================
+
+# OPTION 1: LOCAL FILESYSTEM STORAGE (DEFAULT)
+# ============================================
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/boltdb-cache
+    cache_ttl: 24h
+    
+  filesystem:
+    directory: /loki/chunks
+
+# ============================================
+# OPTION 2: AWS S3 STORAGE (COMMENTED OUT - UNCOMMENT TO USE)
+# ============================================
+# storage_config:
+#   boltdb_shipper:
+#     active_index_directory: /loki/index
+#     cache_location: /loki/boltdb-cache
+#     shared_store: s3
+#     cache_ttl: 24h
+#   
+#   aws:
+#     s3: ${LOKI_S3_URL}
+#     s3forcepathstyle: true
+#     region: ${AWS_REGION}
+#     bucketnames: ${LOKI_BUCKET_NAME}
+#     access_key_id: ${AWS_ACCESS_KEY_ID}
+#     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+#     insecure: false
+#     http_config:
+#       idle_conn_timeout: 90s
+#       response_header_timeout: 0s
+# ============================================
+
+compactor:
+  working_directory: /loki/compactor
+  # ============================================
+  # For local filesystem (DEFAULT)
+  # ============================================
+  shared_store: filesystem
+  
+  # ============================================
+  # For S3 storage (COMMENTED OUT)
+  # ============================================
+  # shared_store: s3
+  # ============================================
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
 
 limits_config:
   enforce_metric_name: false
   reject_old_samples: true
   reject_old_samples_max_age: 168h
+  ingestion_rate_mb: 10
+  ingestion_burst_size_mb: 20
+  max_query_parallelism: 32
+  max_streams_per_user: 10000
+  max_global_streams_per_user: 5000
+  max_chunks_per_query: 2000000
+  max_query_series: 500
+  cardinality_limit: 100000
 
 chunk_store_config:
-  max_look_back_period: 0s
+  max_look_back_period: ${LOKI_RETENTION_PERIOD:-720h}
+  chunk_cache_config:
+    enable_fifocache: true
+    fifocache:
+      max_size_bytes: 500MB
+      max_size_items: 5000
+      validity: 24h
 
 table_manager:
   retention_deletes_enabled: true
-  retention_period: 720h
+  retention_period: ${LOKI_RETENTION_PERIOD:-720h}
+  poll_interval: 10m
+  creation_grace_period: 24h
 
-compactor:
-  working_directory: /loki/compactor
-  shared_store: filesystem
+query_range:
+  split_queries_by_interval: 30m
+  max_retries: 5
+  parallelism: 32
+
+frontend:
+  max_outstanding_per_tenant: 1000
+  max_outstanding_per_request: 500
+  compress_responses: true
+
+ruler:
+  alertmanager_url: http://alertmanager:9093
+  ring:
+    kvstore:
+      store: inmemory
+  rule_path: /loki/rules
+  
+  # ============================================
+  # For local filesystem (DEFAULT)
+  # ============================================
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  
+  # ============================================
+  # For S3 storage (COMMENTED OUT)
+  # ============================================
+  # storage:
+  #   type: s3
+  #   s3:
+  #     s3: ${LOKI_RULER_S3_URL}
+  #     bucketnames: ${LOKI_RULER_BUCKET_NAME}
+  #     region: ${AWS_REGION}
+  #     access_key_id: ${AWS_ACCESS_KEY_ID}
+  #     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+  #     s3forcepathstyle: true
+  # ============================================
+  poll_interval: 1m
+  evaluation_interval: 1m
