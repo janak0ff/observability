@@ -1,71 +1,48 @@
 global:
   resolve_timeout: 5m
-  slack_api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
   smtp_smarthost: 'smtp.gmail.com:587'
-  smtp_from: 'alerts@yourdomain.com'
-  smtp_auth_username: 'your-email@gmail.com'
-  smtp_auth_password: 'your-app-password'
+  smtp_from: 'janak.shrestha.it@gmail.com'
+  smtp_auth_username: 'janak.shrestha.it@gmail.com'
+  # Use a Gmail App Password (not your regular password)
+  # Generate at: https://myaccount.google.com/apppasswords
+  smtp_auth_password: 'wadyhxqqaiykbkav'
   smtp_require_tls: true
 
 templates:
   - '/etc/alertmanager/templates/*.tmpl'
 
 route:
-  group_by: ['alertname', 'cluster', 'service']
+  group_by: ['alertname', 'severity']
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
-  receiver: 'default-receiver'
+  receiver: 'email-alerts'
+
   routes:
     - match:
         severity: critical
-      receiver: 'critical-receiver'
-      continue: true
+      receiver: 'email-alerts'
+      group_wait: 10s
+      repeat_interval: 1h
+
     - match:
         severity: warning
-      receiver: 'warning-receiver'
-    - match:
-        team: operations
-      receiver: 'ops-receiver'
-    - match:
-        team: applications
-      receiver: 'app-receiver'
+      receiver: 'email-alerts'
+      group_wait: 1m
+      repeat_interval: 4h
 
 receivers:
-  - name: 'default-receiver'
+  - name: 'email-alerts'
     email_configs:
-      - to: 'team@yourdomain.com'
-        html: '{{ template "email.default.html" . }}'
+      - to: 'janak123g@gmail.com'
+        send_resolved: true
         headers:
-          subject: '{{ template "email.default.subject" . }}'
+          subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} - {{ .CommonAnnotations.summary }}'
+        html: '{{ template "email.custom.html" . }}'
 
-  - name: 'critical-receiver'
-    email_configs:
-      - to: 'oncall@yourdomain.com'
-        html: '{{ template "email.critical.html" . }}'
-        headers:
-          subject: '[CRITICAL] {{ template "email.default.subject" . }}'
-    slack_configs:
-      - channel: '#critical-alerts'
-        title: '{{ template "slack.default.title" . }}'
-        text: '{{ template "slack.default.text" . }}'
-        send_resolved: true
-
-  - name: 'warning-receiver'
-    email_configs:
-      - to: 'alerts@yourdomain.com'
-        html: '{{ template "email.default.html" . }}'
-
-  - name: 'ops-receiver'
-    slack_configs:
-      - channel: '#ops-alerts'
-        title: '{{ template "slack.default.title" . }}'
-        text: '{{ template "slack.default.text" . }}'
-        send_resolved: true
-
-  - name: 'app-receiver'
-    slack_configs:
-      - channel: '#app-alerts'
-        title: '{{ template "slack.default.title" . }}'
-        text: '{{ template "slack.default.text" . }}'
-        send_resolved: true
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

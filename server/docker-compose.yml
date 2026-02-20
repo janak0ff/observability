@@ -49,7 +49,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-lokiexplore-app,grafana-exploretraces-app,grafana-metricsdrilldown-app,grafana-pyroscope-app
       - GF_AUTH_ANONYMOUS_ENABLED=${GRAFANA_ANONYMOUS_ACCESS:-false}
       - GF_FEATURE_TOGGLES_ENABLE=exploreLogs,lokiExplore,lokiQueryBuilder,lokiStructuredMetadata
 
@@ -95,6 +95,7 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
       - '--web.external-url=http://localhost:9093'
+      - '--log.level=debug'
     ports:
       - "${ALERTMANAGER_PORT:-9093}:9093"
     networks:

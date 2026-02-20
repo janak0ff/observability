@@ -37,6 +37,7 @@ services:
       - ./configs/config.alloy:/etc/alloy/config.alloy
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
     ports:
       - "${ALLOY_PORT:-12345}:12345"
     command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy

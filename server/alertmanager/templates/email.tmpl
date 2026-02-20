@@ -1,84 +1,160 @@
-{{ define "email.default.subject" }}
-[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} - {{ .GroupLabels.instance }}
-{{ end }}
-
-{{ define "email.default.html" }}
+{{ define "email.custom.html" }}
 <!DOCTYPE html>
 <html>
 <head>
-    <style>
-        body { font-family: Arial, sans-serif; }
-        .alert { margin: 20px; padding: 15px; border-radius: 5px; }
-        .firing { background-color: #ffebee; border-left: 5px solid #f44336; }
-        .resolved { background-color: #e8f5e9; border-left: 5px solid #4caf50; }
-        h2 { margin-top: 0; }
-        .label { font-weight: bold; color: #666; }
-        .value { margin-left: 10px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background-color: #f5f5f5; }
-    </style>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #333;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+    background-color: #f4f6f8;
+  }
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+  .header {
+    padding: 20px;
+    text-align: center;
+    color: white;
+  }
+  .header.firing.critical {
+    background-color: #e53e3e; /* Red for Critical firing */
+  }
+  .header.firing.warning {
+    background-color: #dd6b20; /* Orange for Warning firing */
+  }
+  .header.resolved {
+    background-color: #38a169; /* Green for Resolved */
+  }
+  .header h1 {
+    margin: 0;
+    font-size: 24px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .content {
+    padding: 30px;
+  }
+  .alert-box {
+    border-left: 4px solid #cbd5e0;
+    padding: 15px;
+    margin-bottom: 20px;
+    background-color: #f7fafc;
+    border-radius: 0 4px 4px 0;
+  }
+  .alert-box.critical { border-color: #e53e3e; }
+  .alert-box.warning { border-color: #dd6b20; }
+  .alert-title {
+    font-weight: bold;
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #2d3748;
+  }
+  .alert-details {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .footer {
+    background-color: #edf2f7;
+    padding: 15px;
+    text-align: center;
+    font-size: 12px;
+    color: #718096;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  th, td {
+    padding: 6px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  th {
+    width: 30%;
+    color: #4a5568;
+    background-color: #f7fafc;
+  }
+</style>
 </head>
 <body>
-    <h1>AlertManager Notification</h1>
+<div class="container">
+  <!-- Header -->
+  <div class="header {{ .Status }} {{ .CommonLabels.severity }}">
+    <h1>
+      [{{ .Status | toUpper }}] {{ .Alerts | len }} alert(s)
+    </h1>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <p style="font-size: 16px; margin-top: 0;">
+      <strong>Alert Group:</strong> {{ .GroupLabels.alertname }}
+    </p>
+
+    {{ range .Alerts }}
+    <div class="alert-box {{ .Labels.severity }}">
+      <div class="alert-title">{{ .Annotations.summary }}</div>
+      <div class="alert-details">{{ .Annotations.description }}</div>
+      
+      <table>
+        <tbody>
+          <tr>
+            <th>Severity</th>
+            <td>
+              <span style="font-weight: bold; color: {{ if eq .Labels.severity "critical" }}#e53e3e{{ else if eq .Labels.severity "warning" }}#dd6b20{{ else }}#718096{{ end }};">
+                {{ .Labels.severity | toUpper }}
+              </span>
+            </td>
+          </tr>
+          {{ if .Labels.instance }}
+          <tr>
+            <th>Instance</th>
+            <td>{{ .Labels.instance }}</td>
+          </tr>
+          {{ end }}
+          {{ if .Labels.job }}
+          <tr>
+            <th>Job</th>
+            <td>{{ .Labels.job }}</td>
+          </tr>
+          {{ end }}
+          <tr>
+            <th>Started At</th>
+            <td>{{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</td>
+          </tr>
+          {{ if eq .Status "resolved" }}
+          <tr>
+            <th>Resolved At</th>
+            <td>{{ .EndsAt.Format "2006-01-02 15:04:05 UTC" }}</td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+    {{ end }}
     
-    <div class="alert {{ .Status }}">
-        <h2>{{ .Status | toUpper }}: {{ .CommonLabels.alertname }}</h2>
-        
-        <p><span class="label">Started at:</span> <span class="value">{{ .StartsAt }}</span></p>
-        {{ if .EndsAt }}<p><span class="label">Ended at:</span> <span class="value">{{ .EndsAt }}</span></p>{{ end }}
-        
-        <h3>Labels</h3>
-        <table>
-            <tr>
-                <th>Label</th>
-                <th>Value</th>
-            </tr>
-            {{ range $key, $value := .CommonLabels }}
-            <tr>
-                <td>{{ $key }}</td>
-                <td>{{ $value }}</td>
-            </tr>
-            {{ end }}
-        </table>
-        
-        <h3>Alerts</h3>
-        {{ range .Alerts }}
-        <div style="margin: 10px 0; padding: 10px; background-color: #f9f9f9; border-radius: 3px;">
-            <h4>{{ .Labels.instance }}</h4>
-            <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
-            <p><strong>Description:</strong> {{ .Annotations.description }}</p>
-        </div>
-        {{ end }}
+    <div style="text-align: center; margin-top: 25px;">
+      <a href="http://localhost:3000/explore" style="background-color: #3182ce; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">View in Grafana</a>
     </div>
-</body>
-</html>
-{{ end }}
+  </div>
 
-{{ define "email.critical.html" }}
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #fff0f0; }
-        .critical { color: #d32f2f; font-weight: bold; }
-        .alert { margin: 20px; padding: 20px; border: 2px solid #d32f2f; border-radius: 5px; background-color: white; }
-        .urgent { background-color: #ffebee; padding: 15px; border-radius: 3px; margin: 10px 0; }
-    </style>
-</head>
-<body>
-    <div class="alert">
-        <h1 class="critical">🚨 CRITICAL ALERT 🚨</h1>
-        <div class="urgent">
-            <h2>{{ .CommonLabels.alertname }}</h2>
-            <p><strong>Instance:</strong> {{ .CommonLabels.instance }}</p>
-            <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
-        </div>
-        
-        {{ template "email.default.html" . }}
-        
-        <p style="color: #d32f2f; font-weight: bold;">IMMEDIATE ATTENTION REQUIRED</p>
-    </div>
+  <!-- Footer -->
+  <div class="footer">
+    This alert was generated by Alertmanager.<br>
+    Observability Stack Environment
+  </div>
+</div>
 </body>
 </html>
 {{ end }}

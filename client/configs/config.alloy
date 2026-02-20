@@ -1,5 +1,61 @@
 // Alloy configuration for log collection and metrics
 
+// ============================================================
+// HOST SYSTEM LOG COLLECTION (/var/log)
+// ============================================================
+
+// Package manager logs: apt & dpkg
+loki.source.file "apt_logs" {
+  targets = [
+    {__path__ = "/var/log/dpkg.log",       "job" = "package_manager", "app" = "dpkg",   "log_type" = "packages"},
+    {__path__ = "/var/log/apt/history.log", "job" = "package_manager", "app" = "apt",    "log_type" = "packages"},
+    {__path__ = "/var/log/apt/term.log",    "job" = "package_manager", "app" = "apt",    "log_type" = "packages"},
+  ]
+  forward_to = [loki.process.system_logs.receiver]
+}
+
+// Boot & system logs
+loki.source.file "boot_logs" {
+  targets = [
+    {__path__ = "/var/log/boot.log",        "job" = "system", "app" = "boot",         "log_type" = "boot"},
+    {__path__ = "/var/log/alternatives.log","job" = "system", "app" = "alternatives", "log_type" = "system"},
+    {__path__ = "/var/log/fontconfig.log",  "job" = "system", "app" = "fontconfig",   "log_type" = "system"},
+  ]
+  forward_to = [loki.process.system_logs.receiver]
+}
+
+// Display server logs (Xorg / sddm)
+loki.source.file "display_logs" {
+  targets = [
+    {__path__ = "/var/log/Xorg.0.log",      "job" = "display", "app" = "xorg", "log_type" = "display"},
+    {__path__ = "/var/log/sddm.log",         "job" = "display", "app" = "sddm", "log_type" = "display"},
+  ]
+  forward_to = [loki.process.system_logs.receiver]
+}
+
+// Printing logs (CUPS)
+loki.source.file "cups_logs" {
+  targets = [
+    {__path__ = "/var/log/cups/access_log",  "job" = "cups", "app" = "cups", "log_type" = "access"},
+    {__path__ = "/var/log/cups/error_log",   "job" = "cups", "app" = "cups", "log_type" = "error"},
+  ]
+  forward_to = [loki.process.system_logs.receiver]
+}
+
+// Process pipeline for system logs (minimal processing, preserve plain-text format)
+loki.process "system_logs" {
+  forward_to = [loki.write.server.receiver]
+
+  stage.static_labels {
+    values = {
+      host        = env("HOSTNAME"),
+      environment = "production",
+      collector   = "alloy",
+    }
+  }
+}
+
+
 // Log collection from Docker Daemon
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"

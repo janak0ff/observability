@@ -1,5 +1,8 @@
 groups:
-  - name: node_alerts
+  # ============================================================
+  # INFRASTRUCTURE ALERTS (CPU, Memory, Disk)
+  # ============================================================
+  - name: infrastructure_alerts
     interval: 30s
     rules:
       - alert: InstanceDown
@@ -7,60 +10,75 @@ groups:
         for: 5m
         labels:
           severity: critical
-          team: operations
         annotations:
           summary: "Instance {{ $labels.instance }} is down"
-          description: "{{ $labels.instance }} has been down for more than 5 minutes."
+          description: "{{ $labels.instance }} ({{ $labels.job }}) has been unreachable for more than 5 minutes."
 
       - alert: HighCPUUsage
         expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
-        for: 10m
+        for: 5m
         labels:
           severity: warning
-          team: operations
         annotations:
           summary: "High CPU usage on {{ $labels.instance }}"
-          description: "CPU usage is above 80% for more than 10 minutes."
+          description: "CPU usage is {{ printf \"%.1f\" $value }}% on {{ $labels.instance }}, above the 80% threshold for 5+ minutes."
 
       - alert: HighMemoryUsage
-        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
-        for: 10m
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 80
+        for: 5m
         labels:
           severity: warning
-          team: operations
         annotations:
           summary: "High memory usage on {{ $labels.instance }}"
-          description: "Memory usage is above 85% for more than 10 minutes."
+          description: "Memory usage is {{ printf \"%.1f\" $value }}% on {{ $labels.instance }}, above the 80% threshold for 5+ minutes."
 
-      - alert: DiskSpaceRunningLow
-        expr: (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"}) * 100 < 10
-        for: 5m
-        labels:
-          severity: critical
-          team: operations
-        annotations:
-          summary: "Low disk space on {{ $labels.instance }}"
-          description: "Disk space is below 10% on {{ $labels.device }}"
-
-  - name: application_alerts
-    interval: 30s
-    rules:
-      - alert: HighTraffic
-        expr: rate(nginx_http_requests_total[5m]) > 1000
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) * 100 > 80
         for: 5m
         labels:
           severity: warning
-          team: applications
         annotations:
-          summary: "High traffic detected on {{ $labels.instance }}"
-          description: "Request rate is above 1000 requests/second"
+          summary: "High disk usage on {{ $labels.instance }}"
+          description: "Disk {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" $value }}% full, above the 80% threshold."
 
-      - alert: JenkinsBuildFailures
-        expr: rate(jenkins_job_build_failure_count[15m]) > 0
-        for: 5m
+      - alert: CriticalDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) * 100 > 95
+        for: 2m
         labels:
           severity: critical
-          team: ci-cd
         annotations:
-          summary: "Jenkins build failures detected"
-          description: "Build failures are occurring on Jenkins instance"
+          summary: "Critical disk usage on {{ $labels.instance }}"
+          description: "Disk {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" $value }}% full — critically low space!"
+
+  # ============================================================
+  # SERVICE HEALTH ALERTS
+  # ============================================================
+  - name: service_alerts
+    interval: 30s
+    rules:
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus has been unreachable for more than 2 minutes."
+
+      - alert: LokiDown
+        expr: up{job="loki"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Loki is down"
+          description: "Loki has been unreachable for more than 2 minutes."
+
+      - alert: GrafanaDown
+        expr: up{job="grafana"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Grafana is down"
+          description: "Grafana has been unreachable for more than 2 minutes."
