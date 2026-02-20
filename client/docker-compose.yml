@@ -32,9 +32,10 @@ services:
     image: grafana/alloy:latest
     container_name: alloy
     restart: unless-stopped
+    user: root
     volumes:
       - ./configs/config.alloy:/etc/alloy/config.alloy
-      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     ports:
       - "${ALLOY_PORT:-12345}:12345"
@@ -44,6 +45,7 @@ services:
     environment:
       - LOKI_URL=${LOKI_URL:-http://server:3100/loki/api/v1/push}
       - HOSTNAME=${HOSTNAME:-client}
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://server:9090/api/v1/write}
 
   # Process Exporter
   process-exporter:

@@ -21,15 +21,28 @@ scrape_configs:
     metrics_path: /metrics
     scheme: http
 
+  # Grafana self-monitoring
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+
+  # Loki self-monitoring
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+
+  # Alertmanager self-monitoring
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+
   # Node Exporter - Client nodes
-  - job_name: 'node_exporter_clients'
+  - job_name: 'node_exporter'
     scrape_interval: 30s
     scrape_timeout: 10s
     static_configs:
       - targets:
-          - ${CLIENT_NODE_1}
-          - ${CLIENT_NODE_2}
-          - ${CLIENT_NODE_3}
+          - host.docker.internal:9100
     relabel_configs:
       - source_labels: [__address__]
         regex: '([^:]+):.*'
@@ -43,27 +56,10 @@ scrape_configs:
   # Alloy for logs
   - job_name: 'alloy_clients'
     static_configs:
-      - targets: ['client1:12345', 'client2:12345', 'client3:12345']
+      - targets: ['host.docker.internal:12345']
     metrics_path: /metrics
 
   # Process Exporter
   - job_name: 'process_exporter'
     static_configs:
-      - targets: ['client1:9256', 'client2:9256', 'client3:9256']
-
-  # Blackbox Exporter (for external endpoints)
-  - job_name: 'blackbox_http'
-    metrics_path: /probe
-    params:
-      module: [http_2xx]
-    static_configs:
-      - targets:
-          - https://example.com
-          - https://api.example.com
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: __param_target
-      - source_labels: [__param_target]
-        target_label: instance
-      - target_label: __address__
-        replacement: blackbox-exporter:9115
+      - targets: ['host.docker.internal:9256']

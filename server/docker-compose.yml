@@ -39,6 +39,7 @@ services:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/dashboards-custom:/var/lib/grafana/dashboards
+      - ./grafana/plugins:/etc/grafana/provisioning/plugins
       - grafana_data:/var/lib/grafana
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
@@ -49,6 +50,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_AUTH_ANONYMOUS_ENABLED=${GRAFANA_ANONYMOUS_ACCESS:-false}
+      - GF_FEATURE_TOGGLES_ENABLE=exploreLogs,lokiExplore,lokiQueryBuilder,lokiStructuredMetadata
 
   loki:
     image: grafana/loki:latest
@@ -60,7 +62,7 @@ services:
       - loki_data:/loki
     ports:
       - "${LOKI_PORT:-3100}:3100"
-    command: -config.file=/etc/loki/loki-config.yaml
+    command: -config.file=/etc/loki/loki-config.yaml -config.expand-env=true
     networks:
       - observability
     environment:

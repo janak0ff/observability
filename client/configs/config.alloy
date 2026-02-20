@@ -3,11 +3,7 @@
 // Log collection from various sources
 loki.source.file "log_files" {
   targets = [
-    {__path__ = "/var/log/syslog"},
-    {__path__ = "/var/log/auth.log"},
-    {__path__ = "/var/log/nginx/*.log"},
-    {__path__ = "/var/log/application/*.log"},
-    {__path__ = "/var/log/jenkins/*.log"},
+    {__path__ = "/var/lib/docker/containers/*/*.log", "job" = "docker_containers"},
   ]
   forward_to = [loki.process.filter_logs.receiver]
 }
@@ -71,17 +67,6 @@ loki.write "server" {
   }
 }
 
-// Prometheus metrics endpoint
-prometheus.exporter.unix "system" {
-  include_exporter_metrics = true
-  
-  // Collect additional metrics
-  filesystem {
-    mount_points_exclude = "^/(dev|proc|sys|run|var/lib/docker)($|/)"
-    fs_types_exclude = "^tmpfs$|^autofs$|^binfmt_misc$|^cgroup$|^debugfs$|^devpts$|^devtmpfs$|^fusectl$|^hugetlbfs$|^mqueue$|^nsfs$|^overlay$|^proc$|^procfs$|^pstore$|^rpc_pipefs$|^securityfs$|^sockfs$|^sysfs$|^tracefs$"
-  }
-}
-
 // Scrape Docker container metrics
 prometheus.scrape "docker" {
   targets = [
@@ -94,7 +79,7 @@ prometheus.scrape "docker" {
 // Remote write to Prometheus
 prometheus.remote_write "metrics" {
   endpoint {
-    url = "http://${PROMETHEUS_SERVER:-192.168.1.100:9090}/api/v1/write"
+    url = env("PROMETHEUS_URL")
     
     // Add authentication if needed
     // basic_auth {

@@ -1,10 +1,10 @@
 global:
   resolve_timeout: 5m
-  slack_api_url: '${SLACK_WEBHOOK_URL}'
-  smtp_smarthost: '${SMTP_HOST}:${SMTP_PORT}'
-  smtp_from: '${SMTP_FROM}'
-  smtp_auth_username: '${SMTP_USERNAME}'
-  smtp_auth_password: '${SMTP_PASSWORD}'
+  slack_api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@yourdomain.com'
+  smtp_auth_username: 'your-email@gmail.com'
+  smtp_auth_password: 'your-app-password'
   smtp_require_tls: true
 
 templates:
@@ -34,14 +34,14 @@ route:
 receivers:
   - name: 'default-receiver'
     email_configs:
-      - to: '${DEFAULT_ALERT_EMAIL}'
+      - to: 'team@yourdomain.com'
         html: '{{ template "email.default.html" . }}'
         headers:
           subject: '{{ template "email.default.subject" . }}'
 
   - name: 'critical-receiver'
     email_configs:
-      - to: '${CRITICAL_ALERT_EMAIL}'
+      - to: 'oncall@yourdomain.com'
         html: '{{ template "email.critical.html" . }}'
         headers:
           subject: '[CRITICAL] {{ template "email.default.subject" . }}'
@@ -53,7 +53,7 @@ receivers:
 
   - name: 'warning-receiver'
     email_configs:
-      - to: '${WARNING_ALERT_EMAIL}'
+      - to: 'alerts@yourdomain.com'
         html: '{{ template "email.default.html" . }}'
 
   - name: 'ops-receiver'

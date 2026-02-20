@@ -15,8 +15,8 @@ common:
 
 schema_config:
   configs:
-    - from: 2020-10-24
-      store: boltdb-shipper
+    - from: 2024-01-01
+      store: tsdb
       # ============================================
       # OPTION 1: LOCAL FILESYSTEM STORAGE (DEFAULT)
       # ============================================
@@ -27,7 +27,7 @@ schema_config:
       # ============================================
       # object_store: s3
       # ============================================
-      schema: v11
+      schema: v13
       index:
         prefix: loki_index_
         period: 24h
@@ -39,9 +39,9 @@ schema_config:
 # OPTION 1: LOCAL FILESYSTEM STORAGE (DEFAULT)
 # ============================================
 storage_config:
-  boltdb_shipper:
+  tsdb_shipper:
     active_index_directory: /loki/index
-    cache_location: /loki/boltdb-cache
+    cache_location: /loki/tsdb-cache
     cache_ttl: 24h
     
   filesystem:
@@ -75,20 +75,15 @@ compactor:
   # ============================================
   # For local filesystem (DEFAULT)
   # ============================================
-  shared_store: filesystem
-  
-  # ============================================
-  # For S3 storage (COMMENTED OUT)
-  # ============================================
-  # shared_store: s3
   # ============================================
   compaction_interval: 10m
   retention_enabled: true
   retention_delete_delay: 2h
   retention_delete_worker_count: 150
+  delete_request_store: filesystem
 
 limits_config:
-  enforce_metric_name: false
+  allow_structured_metadata: false
   reject_old_samples: true
   reject_old_samples_max_age: 168h
   ingestion_rate_mb: 10
@@ -100,15 +95,6 @@ limits_config:
   max_query_series: 500
   cardinality_limit: 100000
 
-chunk_store_config:
-  max_look_back_period: ${LOKI_RETENTION_PERIOD:-720h}
-  chunk_cache_config:
-    enable_fifocache: true
-    fifocache:
-      max_size_bytes: 500MB
-      max_size_items: 5000
-      validity: 24h
-
 table_manager:
   retention_deletes_enabled: true
   retention_period: ${LOKI_RETENTION_PERIOD:-720h}
@@ -116,13 +102,10 @@ table_manager:
   creation_grace_period: 24h
 
 query_range:
-  split_queries_by_interval: 30m
   max_retries: 5
-  parallelism: 32
 
 frontend:
   max_outstanding_per_tenant: 1000
-  max_outstanding_per_request: 500
   compress_responses: true
 
 ruler:
