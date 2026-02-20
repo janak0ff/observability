@@ -1,0 +1,177 @@
+version: '3.8'
+
+networks:
+  observability:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  # ===================================================
+  # NGINX - Reverse Proxy + TLS Termination
+  # Only publicly exposed service (ports 80 and 443)
+  # ===================================================
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - observability
+    depends_on:
+      - grafana
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "128m"
+
+  # ===================================================
+  # PROMETHEUS
+  # Internal only — NOT exposed publicly
+  # ===================================================
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: prometheus
+    restart: unless-stopped
+    user: "65534:65534"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-20GB}'
+      - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    networks:
+      - observability
+    environment:
+      - CLIENT_NODE_1=${CLIENT_NODE_1}
+      - CLIENT_NODE_2=${CLIENT_NODE_2}
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    # NO ports: exposed — internal only
+
+  # ===================================================
+  # GRAFANA
+  # Served publicly through Nginx reverse proxy
+  # ===================================================
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: grafana
+    restart: unless-stopped
+    user: "472:472"
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards-custom:/var/lib/grafana/dashboards:ro
+      - ./grafana/plugins:/etc/grafana/provisioning/plugins:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - observability
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SERVER_ROOT_URL=https://${DOMAIN}/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_STRICT_TRANSPORT_SECURITY=true
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-lokiexplore-app,grafana-exploretraces-app,grafana-metricsdrilldown-app
+      - GF_FEATURE_TOGGLES_ENABLE=exploreLogs,lokiExplore,lokiQueryBuilder,lokiStructuredMetadata
+      - GF_LOG_LEVEL=warn
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512m"
+    depends_on:
+      - prometheus
+      - loki
+
+  # ===================================================
+  # LOKI
+  # Internal only — NOT exposed publicly
+  # ===================================================
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: loki
+    restart: unless-stopped
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - ./loki/rules:/etc/loki/rules:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yaml -config.expand-env=true
+    networks:
+      - observability
+    environment:
+      - LOKI_RETENTION_PERIOD=${LOKI_RETENTION_PERIOD:-720h}
+      - LOKI_STORAGE_TYPE=${LOKI_STORAGE_TYPE:-filesystem}
+      # AWS S3 (only needed when LOKI_STORAGE_TYPE=s3):
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - LOKI_BUCKET_NAME=${LOKI_BUCKET_NAME:-loki-logs}
+    depends_on:
+      - alertmanager
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: "3g"
+    # NO ports: exposed — internal only
+
+  # ===================================================
+  # ALERTMANAGER
+  # Internal only — NOT exposed publicly
+  # ===================================================
+  alertmanager:
+    image: prom/alertmanager:v0.31.1
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager/templates:/etc/alertmanager/templates:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--config.expand-env=true'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=https://${DOMAIN}/alertmanager'
+      - '--log.level=warn'
+    networks:
+      - observability
+    environment:
+      - SMTP_FROM=${SMTP_FROM}
+      - SMTP_AUTH_USERNAME=${SMTP_AUTH_USERNAME}
+      - SMTP_AUTH_PASSWORD=${SMTP_AUTH_PASSWORD}
+      - DEFAULT_ALERT_EMAIL=${DEFAULT_ALERT_EMAIL}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "256m"
+    # NO ports: exposed — internal only
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alertmanager_data:
+  nginx_logs:

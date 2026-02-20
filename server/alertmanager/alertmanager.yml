@@ -1,11 +1,10 @@
 global:
   resolve_timeout: 5m
   smtp_smarthost: 'smtp.gmail.com:587'
-  smtp_from: 'janak.shrestha.it@gmail.com'
-  smtp_auth_username: 'janak.shrestha.it@gmail.com'
-  # Use a Gmail App Password (not your regular password)
-  # Generate at: https://myaccount.google.com/apppasswords
-  smtp_auth_password: 'wadyhxqqaiykbkav'
+  smtp_from: '${SMTP_FROM}'
+  smtp_auth_username: '${SMTP_AUTH_USERNAME}'
+  # Gmail App Password — set in .env (never hardcode here)
+  smtp_auth_password: '${SMTP_AUTH_PASSWORD}'
   smtp_require_tls: true
 
 templates:
@@ -34,7 +33,7 @@ route:
 receivers:
   - name: 'email-alerts'
     email_configs:
-      - to: 'janak123g@gmail.com'
+      - to: '${DEFAULT_ALERT_EMAIL}'
         send_resolved: true
         headers:
           subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} - {{ .CommonAnnotations.summary }}'

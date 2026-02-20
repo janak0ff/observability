@@ -1,0 +1,8 @@
+# NEVER commit actual secrets to version control
+.env
+.env.local
+nginx/certs/
+data/
+volumes/
+.DS_Store
+Thumbs.db
