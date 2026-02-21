@@ -2,27 +2,43 @@
 
 Runs: **Prometheus · Grafana · Loki · Alertmanager · docker-socket-proxy**
 
-> **Public IP:** `54.152.52.171`
+> **Public IP:** `202.51.74.196`
 
 ---
 
 ## Prerequisites
 
-### AWS Security Group — inbound rules
-| Port | Source | Purpose |
-|------|--------|---------|
-| 22 | Your IP | SSH |
-| 3000 | Your IP | Grafana |
-| 9090 | Your IP | Prometheus |
-| 9093 | Your IP | Alertmanager |
-| 3100 | `34.230.91.8/32` | Loki (client only) |
+### AWS Security Group — SERVER (`202.51.74.196`)
+
+#### Inbound Rules
+| Port | Protocol | Source | Purpose |
+|------|----------|--------|---------|
+| 22 | TCP | Your IP | SSH |
+| 3000 | TCP | Your IP | Grafana UI |
+| 9090 | TCP | Your IP | Prometheus UI |
+| 9093 | TCP | Your IP | Alertmanager UI |
+| 3100 | TCP | `34.230.91.8/32` | Loki push — **client only, never public** |
+| 80 | TCP | `0.0.0.0/0` | HTTP — only if using `--profile nginx` |
+| 443 | TCP | `0.0.0.0/0` | HTTPS — only if using `--profile nginx` |
+
+#### Outbound Rules
+| Port | Protocol | Destination | Purpose |
+|------|----------|-------------|---------|
+| 443 | TCP | `0.0.0.0/0` | Pull Docker images from registry |
+| 587 | TCP | `0.0.0.0/0` | Alertmanager → Gmail SMTP |
+| 9100 | TCP | `34.230.91.8/32` | Prometheus scrapes client node_exporter |
+| 12345 | TCP | `34.230.91.8/32` | Prometheus scrapes client Alloy |
+| 9256 | TCP | `34.230.91.8/32` | Prometheus scrapes client process_exporter |
+
+> [!NOTE]
+> The default AWS outbound rule (`All traffic → 0.0.0.0/0`) already covers all of the above. Only add specific outbound rules if you remove the default and want a strict lockdown policy.
 
 ---
 
 ## Step 1 — Install Docker
 
 ```bash
-ssh -i ~/.ssh/your-key.pem ubuntu@54.152.52.171
+ssh -i ~/.ssh/your-key.pem ubuntu@202.51.74.196
 
 sudo apt-get update && sudo apt-get upgrade -y
 curl -fsSL https://get.docker.com | sudo sh
@@ -42,14 +58,14 @@ Run from your **local machine**:
 
 ```bash
 rsync -avz \
-  -e "ssh -i ~/.ssh/your-key.pem" \
+  -e "ssh -i ~/.ssh/labsuser.pem" \
   --exclude '.env' \
   --exclude 'prometheus_data' \
   --exclude 'grafana_data' \
   --exclude 'loki_data' \
   --exclude 'alertmanager_data' \
   /home/jack/Documents/observability/server/ \
-  ubuntu@54.152.52.171:~/observability/server/
+  ubuntu@202.51.74.196:~/observability/server/
 ```
 
 ---
@@ -57,7 +73,7 @@ rsync -avz \
 ## Step 3 — Configure `.env`
 
 ```bash
-ssh -i ~/.ssh/your-key.pem ubuntu@54.152.52.171
+ssh -i ~/.ssh/your-key.pem ubuntu@202.51.74.196
 cd ~/observability/server
 cp .env-example .env
 nano .env
@@ -71,7 +87,7 @@ ENVIRONMENT=production
 
 # Grafana
 GRAFANA_ADMIN_PASSWORD=<STRONG_PASSWORD>
-GRAFANA_ROOT_URL=http://54.152.52.171:3000
+GRAFANA_ROOT_URL=http://202.51.74.196:3000
 
 # Prometheus
 SCRAPE_INTERVAL=30s
@@ -83,7 +99,7 @@ LOKI_STORAGE_TYPE=filesystem
 LOKI_RETENTION_PERIOD=720h
 
 # Alertmanager
-ALERTMANAGER_EXTERNAL_URL=http://54.152.52.171:9093
+ALERTMANAGER_EXTERNAL_URL=http://202.51.74.196:9093
 ALERTMANAGER_LOG_LEVEL=warn
 
 # SMTP — Gmail App Password
@@ -157,7 +173,7 @@ curl -XPOST http://localhost:9093/api/v1/alerts \
   -d '[{"labels":{"alertname":"TestAlert","severity":"critical"}}]'
 ```
 
-Open Grafana: **http://54.152.52.171:3000** — login: `admin` / `<your password>`
+Open Grafana: **http://202.51.74.196:3000** — login: `admin` / `<your password>`
 
 ---
 

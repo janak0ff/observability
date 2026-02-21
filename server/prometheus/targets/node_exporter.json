@@ -1,12 +1,22 @@
 [
     {
         "targets": [
-            "host.docker.internal:9100"
+            "34.230.91.8:9100"
         ],
         "labels": {
             "job": "node_exporter",
             "host": "client1",
-            "environment": "development"
+            "environment": "production"
+        }
+    },
+    {
+        "targets": [
+            "202.51.74.35:9100"
+        ],
+        "labels": {
+            "job": "node_exporter",
+            "host": "client2",
+            "environment": "production"
         }
     }
 ]

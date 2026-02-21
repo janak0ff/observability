@@ -1,12 +1,22 @@
 [
     {
         "targets": [
-            "host.docker.internal:12345"
+            "34.230.91.8:12345"
         ],
         "labels": {
             "job": "alloy",
             "host": "client1",
-            "environment": "development"
+            "environment": "production"
+        }
+    },
+    {
+        "targets": [
+            "202.51.74.35:12345"
+        ],
+        "labels": {
+            "job": "alloy",
+            "host": "client2",
+            "environment": "production"
         }
     }
 ]

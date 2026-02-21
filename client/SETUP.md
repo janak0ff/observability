@@ -3,21 +3,34 @@
 Runs: **Node Exporter · Alloy · Process Exporter**
 
 > **Public IP:** `34.230.91.8`
-> **Server IP:** `54.152.52.171` (Prometheus + Loki)
+> **Server IP:** `202.51.74.196` (Prometheus + Loki)
 
 ---
 
 ## Prerequisites
 
-### AWS Security Group — inbound rules
-| Port | Source | Purpose |
-|------|--------|---------|
-| 22 | Your IP | SSH |
-| 9100 | `54.152.52.171/32` | Node Exporter (server scrapes) |
-| 12345 | `54.152.52.171/32` | Alloy metrics (server scrapes) |
-| 9256 | `54.152.52.171/32` | Process Exporter (server scrapes) |
+### AWS Security Group — CLIENT (`34.230.91.8`)
 
-> **The server must be deployed and running before starting the client.**
+#### Inbound Rules
+| Port | Protocol | Source | Purpose |
+|------|----------|--------|---------|
+| 22 | TCP | Your IP | SSH |
+| 9100 | TCP | `202.51.74.196/32` | Node Exporter — Prometheus scrapes |
+| 12345 | TCP | `202.51.74.196/32` | Alloy metrics — Prometheus scrapes |
+| 9256 | TCP | `202.51.74.196/32` | Process Exporter — Prometheus scrapes |
+
+#### Outbound Rules
+| Port | Protocol | Destination | Purpose |
+|------|----------|-------------|---------|
+| 443 | TCP | `0.0.0.0/0` | Pull Docker images from registry |
+| 3100 | TCP | `202.51.74.196/32` | Alloy → Loki (push logs to server) |
+| 9090 | TCP | `202.51.74.196/32` | Alloy → Prometheus remote write |
+
+> [!NOTE]
+> The default AWS outbound rule (`All traffic → 0.0.0.0/0`) already covers all of the above. Only add specific outbound rules if you remove the default and want a strict lockdown policy.
+
+> [!IMPORTANT]
+> Deploy and verify the **server** before starting the client.
 
 ---
 
@@ -43,11 +56,7 @@ docker --version && docker compose version
 Run from your **local machine**:
 
 ```bash
-rsync -avz \
-  -e "ssh -i ~/.ssh/your-key.pem" \
-  --exclude '.env' \
-  /home/jack/Documents/observability/client/ \
-  ubuntu@34.230.91.8:~/observability/client/
+rsync -avz -e "ssh -i ~/.ssh/labsuser.pem" /home/jack/Documents/observability/client/ ubuntu@34.230.91.8:~/observability/client/
 ```
 
 ---
@@ -75,8 +84,8 @@ PROCESS_EXPORTER_PORT=9256
 
 # ── Server Connection ─────────────────────────────────────────
 # Point to the server public IP
-LOKI_URL=http://54.152.52.171:3100/loki/api/v1/push
-PROMETHEUS_URL=http://54.152.52.171:9090/api/v1/write
+LOKI_URL=http://202.51.74.196:3100/loki/api/v1/push
+PROMETHEUS_URL=http://202.51.74.196:9090/api/v1/write
 ```
 
 Save: `Ctrl+O` → Enter → `Ctrl+X`
@@ -111,18 +120,18 @@ curl -s http://localhost:9256/metrics | head -3   # process_exporter
 SSH into the server and confirm it can reach the client:
 
 ```bash
-ssh -i ~/.ssh/your-key.pem ubuntu@54.152.52.171
+ssh -i ~/.ssh/your-key.pem ubuntu@202.51.74.196
 
 curl -s http://34.230.91.8:9100/metrics | head -3
 curl -s http://34.230.91.8:12345/metrics | head -3
 curl -s http://34.230.91.8:9256/metrics | head -3
 ```
 
-Then check Prometheus targets at **http://54.152.52.171:9090/targets** — `node_exporter`, `alloy`, and `process_exporter` should show **UP**.
+Then check Prometheus targets at **http://202.51.74.196:9090/targets** — `node_exporter`, `alloy`, and `process_exporter` should show **UP**.
 
 ### Verify logs in Grafana
 
-In Grafana (http://54.152.52.171:3000): **Explore → Loki** → query:
+In Grafana (http://202.51.74.196:3000): **Explore → Loki** → query:
 ```
 {host="client1"}
 ```

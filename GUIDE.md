@@ -8,7 +8,7 @@ A self-hosted observability stack running **Prometheus · Grafana · Loki · Ale
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  SERVER (54.152.52.171)                                         │
+│  SERVER (202.51.74.196)                                         │
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐    │
 │  │  Prometheus  │  │   Grafana    │  │   Alertmanager     │    │
@@ -117,10 +117,10 @@ nano server/.env
 | `ENVIRONMENT` | `development` | `production` |
 | `SCRAPE_INTERVAL` | `15s` | `30s` |
 | `GRAFANA_ADMIN_PASSWORD` | `admin` | Strong password |
-| `GRAFANA_ROOT_URL` | `http://localhost:3000` | `http://54.152.52.171:3000` |
+| `GRAFANA_ROOT_URL` | `http://localhost:3000` | `http://202.51.74.196:3000` |
 | `GRAFANA_COOKIE_SECURE` | `false` | `true` (if HTTPS) |
 | `LOKI_STORAGE_TYPE` | `filesystem` | `filesystem` or `s3` |
-| `ALERTMANAGER_EXTERNAL_URL` | `http://localhost:9093` | `http://54.152.52.171:9093` |
+| `ALERTMANAGER_EXTERNAL_URL` | `http://localhost:9093` | `http://202.51.74.196:9093` |
 | `SMTP_AUTH_PASSWORD` | — | Gmail App Password |
 
 ### Loki S3 Storage (optional)
@@ -222,7 +222,7 @@ curl -XPOST http://localhost:9093/api/v1/alerts \
 
 | Role | Public IP | Services |
 |------|-----------|----------|
-| **Server** | `54.152.52.171` | Prometheus, Grafana, Loki, Alertmanager |
+| **Server** | `202.51.74.196` | Prometheus, Grafana, Loki, Alertmanager |
 | **Client** | `34.230.91.8` | Node Exporter, Alloy, Process Exporter |
 
 > [!IMPORTANT]
@@ -247,9 +247,9 @@ Do this in the **AWS Console → EC2 → Security Groups** before anything else.
 | Port | Protocol | Source | Purpose |
 |------|----------|--------|---------|
 | 22 | TCP | Your IP | SSH |
-| 9100 | TCP | `54.152.52.171/32` | Node Exporter |
-| 12345 | TCP | `54.152.52.171/32` | Alloy metrics |
-| 9256 | TCP | `54.152.52.171/32` | Process Exporter |
+| 9100 | TCP | `202.51.74.196/32` | Node Exporter |
+| 12345 | TCP | `202.51.74.196/32` | Alloy metrics |
+| 9256 | TCP | `202.51.74.196/32` | Process Exporter |
 
 ---
 
@@ -257,7 +257,7 @@ Do this in the **AWS Console → EC2 → Security Groups** before anything else.
 
 ### 2a. SSH into the server
 ```bash
-ssh -i ~/.ssh/your-key.pem ubuntu@54.152.52.171
+ssh -i ~/.ssh/your-key.pem ubuntu@202.51.74.196
 ```
 
 ### 2b. Install Docker
@@ -324,7 +324,7 @@ rsync -avz \
   --exclude 'loki_data' \
   --exclude 'alertmanager_data' \
   /home/jack/Documents/observability/server/ \
-  ubuntu@54.152.52.171:~/observability/server/
+  ubuntu@202.51.74.196:~/observability/server/
 ```
 
 > [!NOTE]
@@ -332,7 +332,7 @@ rsync -avz \
 
 ### 4b. SSH into the server
 ```bash
-ssh -i ~/.ssh/your-key.pem ubuntu@54.152.52.171
+ssh -i ~/.ssh/your-key.pem ubuntu@202.51.74.196
 cd ~/observability/server
 ```
 
@@ -360,7 +360,7 @@ SCRAPE_TIMEOUT=10s
 GRAFANA_PORT=3000
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=<STRONG_PASSWORD>
-GRAFANA_ROOT_URL=http://54.152.52.171:3000
+GRAFANA_ROOT_URL=http://202.51.74.196:3000
 GRAFANA_SERVE_FROM_SUBPATH=false
 GRAFANA_COOKIE_SECURE=false
 GRAFANA_ANONYMOUS_ACCESS=false
@@ -373,7 +373,7 @@ LOKI_STORAGE_TYPE=filesystem
 
 # ── Alertmanager ──────────────────────────────────────────────
 ALERTMANAGER_PORT=9093
-ALERTMANAGER_EXTERNAL_URL=http://54.152.52.171:9093
+ALERTMANAGER_EXTERNAL_URL=http://202.51.74.196:9093
 ALERTMANAGER_LOG_LEVEL=warn
 
 # ── SMTP — Gmail App Password ─────────────────────────────────
