@@ -1,68 +1,74 @@
 #!/usr/bin/env bash
 # ==========================================================
-# deploy.sh — Production deployment helper
-# Usage: ./scripts/deploy.sh [up|down|restart|status|logs]
+# deploy.sh — Observability Stack Helper
+#
+# Dev:  ./scripts/deploy.sh up
+# Prod: ./scripts/deploy.sh up --profile nginx
+#
+# Usage: ./scripts/deploy.sh [up|down|restart|status|logs|validate] [extra docker compose flags]
 # ==========================================================
 set -euo pipefail
 
-COMPOSE_FILE="docker-compose.prod.yml"
 ENV_FILE=".env"
 
-# Validate env file exists
+# Validate .env exists
 if [ ! -f "$ENV_FILE" ]; then
   echo "ERROR: .env file not found!"
-  echo "Copy .env.prod to .env and fill in all values first:"
-  echo "  cp .env.prod .env && nano .env"
+  echo "Copy the template and fill in your values:"
+  echo "  cp .env-example .env && nano .env"
   exit 1
 fi
 
-# Validate required secrets are set
-required_vars=("DOMAIN" "GRAFANA_ADMIN_PASSWORD" "SMTP_AUTH_PASSWORD" "DEFAULT_ALERT_EMAIL")
+# Validate required variables are set and not placeholders
+required_vars=("SMTP_AUTH_PASSWORD" "DEFAULT_ALERT_EMAIL" "GRAFANA_ADMIN_PASSWORD")
 for var in "${required_vars[@]}"; do
   val=$(grep "^${var}=" "$ENV_FILE" | cut -d= -f2- || true)
-  if [ -z "$val" ] || [[ "$val" == *"CHANGE_ME"* ]] || [[ "$val" == *"yourcompany"* ]]; then
-    echo "ERROR: ${var} is not set or still has a placeholder value in .env"
-    exit 1
+  if [ -z "$val" ] || [[ "$val" == *"xxxx"* ]] || [[ "$val" == *"yourcompany"* ]]; then
+    echo "WARNING: ${var} appears to be unset or still a placeholder in .env"
   fi
 done
 
 ACTION="${1:-up}"
+shift || true  # allow extra flags to be passed through
 
 case "$ACTION" in
   up)
-    echo ">> Pulling latest pinned images..."
-    docker compose -f "$COMPOSE_FILE" pull
-
-    echo ">> Starting production stack..."
-    docker compose -f "$COMPOSE_FILE" up -d
-
-    echo ">> Stack started! Status:"
-    docker compose -f "$COMPOSE_FILE" ps
+    echo ">> Pulling images..."
+    docker compose pull
+    echo ">> Starting stack ($@)..."
+    docker compose up -d "$@"
+    echo ""
+    docker compose ps
     ;;
   down)
-    echo ">> Stopping production stack..."
-    docker compose -f "$COMPOSE_FILE" down
+    docker compose down "$@"
     ;;
   restart)
-    echo ">> Restarting production stack..."
-    docker compose -f "$COMPOSE_FILE" restart
+    docker compose restart "$@"
     ;;
   status)
-    docker compose -f "$COMPOSE_FILE" ps
+    docker compose ps
     ;;
   logs)
-    docker compose -f "$COMPOSE_FILE" logs --tail=100 -f
+    docker compose logs --tail=100 -f "$@"
     ;;
   validate)
-    echo ">> Validating configs..."
-    docker compose -f "$COMPOSE_FILE" config --quiet && echo "docker-compose.prod.yml: OK"
-    docker compose -f "$COMPOSE_FILE" exec prometheus promtool check config /etc/prometheus/prometheus.yml \
+    echo ">> Validating docker-compose.yml..."
+    docker compose config --quiet && echo "docker-compose.yml: OK"
+    echo ">> Validating prometheus.yml..."
+    docker compose exec prometheus promtool check config /etc/prometheus/prometheus.yml \
       && echo "prometheus.yml: OK"
-    docker compose -f "$COMPOSE_FILE" exec alertmanager amtool check-config /etc/alertmanager/alertmanager.yml \
+    echo ">> Validating alertmanager.yml..."
+    docker compose exec alertmanager amtool check-config /etc/alertmanager/alertmanager.yml \
       && echo "alertmanager.yml: OK"
     ;;
   *)
-    echo "Usage: $0 [up|down|restart|status|logs|validate]"
+    echo "Usage: $0 [up|down|restart|status|logs|validate] [extra flags]"
+    echo ""
+    echo "Examples:"
+    echo "  ./scripts/deploy.sh up                   # Start (dev)"
+    echo "  ./scripts/deploy.sh up --profile nginx   # Start with Nginx (production)"
+    echo "  ./scripts/deploy.sh logs alertmanager    # Tail alertmanager logs"
     exit 1
     ;;
 esac

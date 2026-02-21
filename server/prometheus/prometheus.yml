@@ -1,63 +1,59 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval: ${SCRAPE_INTERVAL:-15s}
+  scrape_timeout: ${SCRAPE_TIMEOUT:-10s}
+  evaluation_interval: ${SCRAPE_INTERVAL:-15s}
   external_labels:
-    monitor: 'observability-monitor'
+    monitor: 'observability-stack'
+    environment: '${ENVIRONMENT:-development}'
 
 alerting:
   alertmanagers:
     - static_configs:
         - targets: ['alertmanager:9093']
+      timeout: 10s
 
 rule_files:
   - '/etc/prometheus/rules/alert-rules.yml'
   - '/etc/prometheus/rules/record-rules.yml'
 
 scrape_configs:
-  # Prometheus self-monitoring
+  # Observability stack self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
-    metrics_path: /metrics
-    scheme: http
 
-  # Grafana self-monitoring
   - job_name: 'grafana'
     static_configs:
       - targets: ['grafana:3000']
 
-  # Loki self-monitoring
   - job_name: 'loki'
     static_configs:
       - targets: ['loki:3100']
 
-  # Alertmanager self-monitoring
   - job_name: 'alertmanager'
     static_configs:
       - targets: ['alertmanager:9093']
 
-  # Node Exporter - Client nodes
+  # Node Exporter — all monitored servers
+  # Dev: defaults to host.docker.internal (local machine)
+  # Prod: set CLIENT_NODE_1, CLIENT_NODE_2 etc. in .env to real server IPs
   - job_name: 'node_exporter'
-    scrape_interval: 30s
-    scrape_timeout: 10s
+    scrape_interval: ${SCRAPE_INTERVAL:-15s}
+    scrape_timeout: ${SCRAPE_TIMEOUT:-10s}
     static_configs:
       - targets:
-          - host.docker.internal:9100
+          - '${CLIENT_NODE_1:-host.docker.internal:9100}'
+          - '${CLIENT_NODE_2:-}'
     relabel_configs:
       - source_labels: [__address__]
         regex: '([^:]+):.*'
         target_label: instance
         replacement: '${1}'
-      - source_labels: [__address__]
-        regex: '.*'
-        target_label: node
-        replacement: 'client'
 
-  # Alloy for logs
-  - job_name: 'alloy_clients'
+  # Alloy (log shipping agent) self-monitoring
+  - job_name: 'alloy'
     static_configs:
       - targets: ['host.docker.internal:12345']
-    metrics_path: /metrics
 
   # Process Exporter
   - job_name: 'process_exporter'

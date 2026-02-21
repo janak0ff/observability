@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   observability:
     driver: bridge
@@ -8,18 +6,48 @@ networks:
         - subnet: 172.20.0.0/16
 
 services:
+  # ===================================================
+  # NGINX — Reverse Proxy + TLS (production only)
+  # Start with: docker compose --profile nginx up -d
+  # ===================================================
+  nginx:
+    profiles: [nginx]
+    image: nginx:1.27-alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - observability
+    depends_on:
+      - grafana
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "128m"
+
+  # ===================================================
+  # PROMETHEUS
+  # ===================================================
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.2.1
     container_name: prometheus
     restart: unless-stopped
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus/rules:/etc/prometheus/rules
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-10GB}'
       - '--web.enable-lifecycle'
       - '--web.enable-remote-write-receiver'
     ports:
@@ -27,20 +55,27 @@ services:
     networks:
       - observability
     environment:
-      - CLIENT_NODE_1=${CLIENT_NODE_1:-client1:9100}
-      - CLIENT_NODE_2=${CLIENT_NODE_2:-client2:9100}
+      - CLIENT_NODE_1=${CLIENT_NODE_1:-host.docker.internal:9100}
+      - CLIENT_NODE_2=${CLIENT_NODE_2:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
 
+  # ===================================================
+  # GRAFANA
+  # ===================================================
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.4.0
     container_name: grafana
     restart: unless-stopped
     volumes:
-      - ./grafana/datasources:/etc/grafana/provisioning/datasources
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./grafana/dashboards-custom:/var/lib/grafana/dashboards
-      - ./grafana/plugins:/etc/grafana/provisioning/plugins
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/plugins:/etc/grafana/provisioning/plugins:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
@@ -49,70 +84,89 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-lokiexplore-app,grafana-exploretraces-app,grafana-metricsdrilldown-app,grafana-pyroscope-app
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=${GRAFANA_SERVE_FROM_SUBPATH:-false}
+      - GF_SECURITY_COOKIE_SECURE=${GRAFANA_COOKIE_SECURE:-false}
+      - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=${GRAFANA_ANONYMOUS_ACCESS:-false}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-lokiexplore-app,grafana-exploretraces-app,grafana-metricsdrilldown-app
       - GF_FEATURE_TOGGLES_ENABLE=exploreLogs,lokiExplore,lokiQueryBuilder,lokiStructuredMetadata
+      - GF_LOG_LEVEL=${GRAFANA_LOG_LEVEL:-warn}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512m"
+    depends_on:
+      - prometheus
+      - loki
 
+  # ===================================================
+  # LOKI
+  # ===================================================
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.4.2
     container_name: loki
     restart: unless-stopped
     volumes:
-      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml
-      - ./loki/rules:/etc/loki/rules
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - ./loki/rules:/etc/loki/rules:ro
       - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yaml -config.expand-env=true
     ports:
       - "${LOKI_PORT:-3100}:3100"
-    command: -config.file=/etc/loki/loki-config.yaml -config.expand-env=true
     networks:
       - observability
     environment:
-      # ============================================
-      # Optional S3 Environment Variables (commented out by default)
-      # Uncomment these if using S3 storage and uncomment S3 sections in loki-config.yaml
-      # ============================================
-      # - AWS_REGION=${AWS_REGION}
-      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      # - LOKI_BUCKET_NAME=${LOKI_BUCKET_NAME}
-      # - LOKI_RULER_BUCKET_NAME=${LOKI_RULER_BUCKET_NAME}
-      # - LOKI_S3_URL=${LOKI_S3_URL}
-      # - LOKI_RULER_S3_URL=${LOKI_RULER_S3_URL}
-      # ============================================
-      - LOKI_RETENTION_PERIOD=${LOKI_RETENTION_PERIOD}
+      - LOKI_RETENTION_PERIOD=${LOKI_RETENTION_PERIOD:-720h}
+      - LOKI_STORAGE_TYPE=${LOKI_STORAGE_TYPE:-filesystem}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - LOKI_BUCKET_NAME=${LOKI_BUCKET_NAME:-loki-logs}
     depends_on:
       - alertmanager
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: "3g"
 
+  # ===================================================
+  # ALERTMANAGER
+  # ===================================================
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager:v0.31.1
     container_name: alertmanager
     restart: unless-stopped
     volumes:
-      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-      - ./alertmanager/templates:/etc/alertmanager/templates
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager/templates:/etc/alertmanager/templates:ro
       - alertmanager_data:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--config.expand-env=true'
       - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
-      - '--log.level=debug'
+      - '--web.external-url=${ALERTMANAGER_EXTERNAL_URL:-http://localhost:9093}'
+      - '--log.level=${ALERTMANAGER_LOG_LEVEL:-warn}'
     ports:
       - "${ALERTMANAGER_PORT:-9093}:9093"
     networks:
       - observability
     environment:
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
       - SMTP_FROM=${SMTP_FROM}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_AUTH_USERNAME=${SMTP_AUTH_USERNAME}
+      - SMTP_AUTH_PASSWORD=${SMTP_AUTH_PASSWORD}
       - DEFAULT_ALERT_EMAIL=${DEFAULT_ALERT_EMAIL}
-      - CRITICAL_ALERT_EMAIL=${CRITICAL_ALERT_EMAIL}
-      - WARNING_ALERT_EMAIL=${WARNING_ALERT_EMAIL}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "256m"
 
 volumes:
   prometheus_data:
   grafana_data:
   loki_data:
   alertmanager_data:
+  nginx_logs:
