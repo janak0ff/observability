@@ -1,0 +1,12 @@
+[
+    {
+        "targets": [
+            "host.docker.internal:9256"
+        ],
+        "labels": {
+            "job": "process_exporter",
+            "host": "client1",
+            "environment": "development"
+        }
+    }
+]

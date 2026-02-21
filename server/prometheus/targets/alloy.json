@@ -1,0 +1,12 @@
+[
+    {
+        "targets": [
+            "host.docker.internal:12345"
+        ],
+        "labels": {
+            "job": "alloy",
+            "host": "client1",
+            "environment": "development"
+        }
+    }
+]

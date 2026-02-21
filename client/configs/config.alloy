@@ -1,4 +1,21 @@
-// Alloy configuration for log collection and metrics
+// ============================================================
+// LABEL STRATEGY
+// ============================================================
+// All logs and metrics share these consistent labels:
+//   host        = machine hostname (from HOSTNAME env var)
+//   environment = deployment environment (from ENVIRONMENT env var)
+//   collector   = "alloy" (identifies this pipeline)
+//   job         = logical group (e.g. "system", "docker", "package_manager")
+//   app         = specific application within the job
+//   source      = "file" or "docker" (log origin)
+//
+// Docker container logs additionally have:
+//   container   = exact container name
+//   stream      = "stdout" or "stderr"
+//
+// System file logs additionally have:
+//   log_type    = category (e.g. "boot", "packages", "display")
+// ============================================================
 
 // ============================================================
 // HOST SYSTEM LOG COLLECTION (/var/log)
@@ -7,9 +24,9 @@
 // Package manager logs: apt & dpkg
 loki.source.file "apt_logs" {
   targets = [
-    {__path__ = "/var/log/dpkg.log",       "job" = "package_manager", "app" = "dpkg",   "log_type" = "packages"},
-    {__path__ = "/var/log/apt/history.log", "job" = "package_manager", "app" = "apt",    "log_type" = "packages"},
-    {__path__ = "/var/log/apt/term.log",    "job" = "package_manager", "app" = "apt",    "log_type" = "packages"},
+    {__path__ = "/var/log/dpkg.log",       "job" = "package_manager", "app" = "dpkg",  "log_type" = "packages"},
+    {__path__ = "/var/log/apt/history.log", "job" = "package_manager", "app" = "apt",   "log_type" = "packages"},
+    {__path__ = "/var/log/apt/term.log",    "job" = "package_manager", "app" = "apt",   "log_type" = "packages"},
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
@@ -17,9 +34,9 @@ loki.source.file "apt_logs" {
 // Boot & system logs
 loki.source.file "boot_logs" {
   targets = [
-    {__path__ = "/var/log/boot.log",        "job" = "system", "app" = "boot",         "log_type" = "boot"},
-    {__path__ = "/var/log/alternatives.log","job" = "system", "app" = "alternatives", "log_type" = "system"},
-    {__path__ = "/var/log/fontconfig.log",  "job" = "system", "app" = "fontconfig",   "log_type" = "system"},
+    {__path__ = "/var/log/boot.log",         "job" = "system", "app" = "boot",         "log_type" = "boot"},
+    {__path__ = "/var/log/alternatives.log", "job" = "system", "app" = "alternatives", "log_type" = "system"},
+    {__path__ = "/var/log/fontconfig.log",   "job" = "system", "app" = "fontconfig",   "log_type" = "system"},
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
@@ -27,8 +44,8 @@ loki.source.file "boot_logs" {
 // Display server logs (Xorg / sddm)
 loki.source.file "display_logs" {
   targets = [
-    {__path__ = "/var/log/Xorg.0.log",      "job" = "display", "app" = "xorg", "log_type" = "display"},
-    {__path__ = "/var/log/sddm.log",         "job" = "display", "app" = "sddm", "log_type" = "display"},
+    {__path__ = "/var/log/Xorg.0.log", "job" = "display", "app" = "xorg", "log_type" = "display"},
+    {__path__ = "/var/log/sddm.log",   "job" = "display", "app" = "sddm", "log_type" = "display"},
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
@@ -36,141 +53,160 @@ loki.source.file "display_logs" {
 // Printing logs (CUPS)
 loki.source.file "cups_logs" {
   targets = [
-    {__path__ = "/var/log/cups/access_log",  "job" = "cups", "app" = "cups", "log_type" = "access"},
-    {__path__ = "/var/log/cups/error_log",   "job" = "cups", "app" = "cups", "log_type" = "error"},
+    {__path__ = "/var/log/cups/access_log", "job" = "cups", "app" = "cups", "log_type" = "access"},
+    {__path__ = "/var/log/cups/error_log",  "job" = "cups", "app" = "cups", "log_type" = "error"},
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
 
-// Process pipeline for system logs (minimal processing, preserve plain-text format)
+// Shared processing pipeline for all system file logs
 loki.process "system_logs" {
   forward_to = [loki.write.server.receiver]
 
   stage.static_labels {
     values = {
+      source      = "file",
       host        = env("HOSTNAME"),
-      environment = "production",
+      environment = env("ENVIRONMENT"),
       collector   = "alloy",
     }
   }
 }
 
 
-// Log collection from Docker Daemon
+// ============================================================
+// DOCKER CONTAINER LOG COLLECTION
+// ============================================================
+
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
 }
 
+// Relabel Docker metadata into clean log labels
 discovery.relabel "docker_logs" {
   targets = discovery.docker.containers.targets
 
+  // container = bare container name (strip leading slash)
   rule {
     source_labels = ["__meta_docker_container_name"]
     regex         = "/(.*)"
     target_label  = "container"
   }
 
+  // app = same as container (for dashboard template variable compatibility)
   rule {
     source_labels = ["__meta_docker_container_name"]
     regex         = "/(.*)"
     target_label  = "app"
   }
 
+  // job = same as container (for Loki query grouping)
   rule {
     source_labels = ["__meta_docker_container_name"]
     regex         = "/(.*)"
     target_label  = "job"
   }
 
+  // stream = stdout or stderr
   rule {
     source_labels = ["__meta_docker_container_log_stream"]
     target_label  = "stream"
   }
+
+  // image_name label for extra context
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
 }
 
+// Read logs from discovered Docker containers
 loki.source.docker "docker_logs" {
   host       = "unix:///var/run/docker.sock"
   targets    = discovery.relabel.docker_logs.output
-  forward_to = [loki.process.filter_logs.receiver]
+  forward_to = [loki.process.docker_logs.receiver]
 }
 
-// Process and filter logs
-loki.process "filter_logs" {
+// Processing pipeline for Docker logs
+loki.process "docker_logs" {
   forward_to = [loki.write.server.receiver]
-  
-  // Add labels
+
+  // Add shared infrastructure labels
   stage.static_labels {
     values = {
-      host = env("HOSTNAME"),
-      environment = "production",
-      collector = "alloy",
+      source      = "docker",
+      host        = env("HOSTNAME"),
+      environment = env("ENVIRONMENT"),
+      collector   = "alloy",
     }
   }
-  
-  // Parse JSON logs if present
+
+  // Try to parse JSON-formatted log lines (e.g. from Node.js, Go apps)
+  // If the log is not JSON, this stage is a no-op
   stage.json {
     expressions = {
-      level = "",
+      level   = "",
       message = "",
-      timestamp = "",
     }
-    source = "log_line"
   }
-  
-  // Extract timestamp if available
-  stage.timestamp {
-    source = "timestamp"
-    format = "RFC3339"
-  }
-  
-  // Drop debug logs
-  stage.drop {
-    source = "level"
-    value = "debug"
+
+  // Promote extracted "level" field to a label for filtering in Loki
+  stage.labels {
+    values = {
+      level = "level",
+    }
   }
 }
 
-// Send logs to Loki
+
+// ============================================================
+// LOKI OUTPUT
+// No extra labels here — all labels are set in the process stages above
+// to avoid duplication and label conflicts
+// ============================================================
+
 loki.write "server" {
   endpoint {
     url = env("LOKI_URL")
-    
-    // Add basic authentication if needed
-    // basic_auth {
-    //   username = "username"
-    //   password = "password"
-    // }
-    
-    // Add tenant ID if using multi-tenancy
-    // headers = {
-    //   "X-Scope-OrgID": "tenant1",
-    // }
-  }
-  
-  external_labels = {
-    host = env("HOSTNAME"),
-    job = "alloy",
   }
 }
 
-// Scrape Docker container metrics
-prometheus.scrape "docker" {
+
+// ============================================================
+// DOCKER DAEMON METRICS (port 9323)
+// ============================================================
+
+prometheus.scrape "docker_metrics" {
   targets = [
-    {"__address__" = "localhost:9323", "job" = "docker"},
+    {"__address__" = "localhost:9323", "job" = "docker", "host" = env("HOSTNAME")},
   ]
-  forward_to = [prometheus.remote_write.metrics.receiver]
+  forward_to      = [prometheus.relabel.add_labels.receiver]
   scrape_interval = "30s"
+}
+
+// Add environment label to all scraped metrics
+prometheus.relabel "add_labels" {
+  forward_to = [prometheus.remote_write.metrics.receiver]
+
+  rule {
+    target_label = "environment"
+    replacement  = env("ENVIRONMENT")
+  }
+
+  rule {
+    target_label = "collector"
+    replacement  = "alloy"
+  }
 }
 
 // Remote write to Prometheus
 prometheus.remote_write "metrics" {
   endpoint {
     url = env("PROMETHEUS_URL")
-    
-    // Add authentication if needed
-    // basic_auth {
-    //   username = "username"
-    //   password = "password"
-    // }
+  }
+
+  external_labels = {
+    host        = env("HOSTNAME"),
+    environment = env("ENVIRONMENT"),
   }
 }

@@ -3,8 +3,9 @@ global:
   scrape_timeout: 10s
   evaluation_interval: 15s
   external_labels:
-    monitor: 'observability-stack'
+    monitor:     'observability-stack'
     environment: 'development'
+    host:        'server'
 
 alerting:
   alertmanagers:
@@ -16,42 +17,208 @@ rule_files:
   - '/etc/prometheus/rules/alert-rules.yml'
 
 scrape_configs:
-  # Observability stack self-monitoring
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
 
-  - job_name: 'grafana'
-    static_configs:
-      - targets: ['grafana:3000']
+  # ===========================================================
+  # 1. DOCKER SERVICE DISCOVERY
+  #    Auto-discovers all containers in the Docker network.
+  #    A container is scraped only if it has the label:
+  #      prometheus.io/scrape: "true"
+  #    Optional container labels:
+  #      prometheus.io/port: "8080"   (default: first exposed port)
+  #      prometheus.io/path: "/metrics" (default: /metrics)
+  # ===========================================================
+  - job_name: 'docker-sd'
+    docker_sd_configs:
+      - host: http://docker-socket-proxy:2375
+        refresh_interval: 30s
 
-  - job_name: 'loki'
-    static_configs:
-      - targets: ['loki:3100']
+    relabel_configs:
+      # Drop containers that don't have prometheus.io/scrape=true
+      - source_labels: [__meta_docker_container_label_prometheus_io_scrape]
+        action: keep
+        regex: 'true'
 
-  - job_name: 'alertmanager'
-    static_configs:
-      - targets: ['alertmanager:9093']
+      # Use custom port if prometheus.io/port label is set
+      - source_labels: [__address__, __meta_docker_container_label_prometheus_io_port]
+        action: replace
+        regex: '([^:]+)(?::\d+)?;(\d+)'
+        replacement: '$1:$2'
+        target_label: __address__
 
-  # Node Exporter — monitored servers
-  - job_name: 'node_exporter'
-    scrape_interval: 30s
-    scrape_timeout: 10s
-    static_configs:
-      - targets:
-          - 'host.docker.internal:9100'
+      # Use custom metrics path if prometheus.io/path label is set
+      - source_labels: [__meta_docker_container_label_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: '(.+)'
+
+      # Set job label from container name
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        target_label: job
+
+      # Set instance label from container name
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        target_label: instance
+
+      # Carry the container image as a label
+      - source_labels: [__meta_docker_container_image]
+        target_label: image
+
+  # ===========================================================
+  # 2. FILE-BASED SERVICE DISCOVERY — Client Nodes
+  #    Scrape targets are defined in JSON files under
+  #    /etc/prometheus/targets/*.json.
+  #    Prometheus reloads these files every 30s automatically —
+  #    add/remove nodes with zero Prometheus restart.
+  #
+  #    File format example (targets/node_exporter.json):
+  #    [
+  #      {
+  #        "targets": ["10.0.1.10:9100"],
+  #        "labels": { "job": "node_exporter", "host": "web-01", "env": "production" }
+  #      }
+  #    ]
+  # ===========================================================
+  - job_name: 'file-sd-node-exporter'
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/node_exporter.json'
+        refresh_interval: 30s
+    relabel_configs:
+      # Clean up instance label to just hostname (strip port)
+      - source_labels: [__address__]
+        regex: '([^:]+):.*'
+        target_label: instance
+        replacement: '$1'
+
+  - job_name: 'file-sd-alloy'
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/alloy.json'
+        refresh_interval: 30s
     relabel_configs:
       - source_labels: [__address__]
         regex: '([^:]+):.*'
         target_label: instance
-        replacement: '${1}'
+        replacement: '$1'
 
-  # Alloy (log shipping agent)
-  - job_name: 'alloy'
-    static_configs:
-      - targets: ['host.docker.internal:12345']
+  - job_name: 'file-sd-process-exporter'
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/process_exporter.json'
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '([^:]+):.*'
+        target_label: instance
+        replacement: '$1'
 
-  # Process Exporter
-  - job_name: 'process_exporter'
-    static_configs:
-      - targets: ['host.docker.internal:9256']
+  # ===========================================================
+  # 3. AWS EC2 SERVICE DISCOVERY
+  #    Automatically discovers EC2 instances in your AWS account.
+  #
+  #    To opt an instance IN to scraping, add these EC2 tags:
+  #      Scrape      = true
+  #      ScrapePort  = 9100       (optional, defaults to job port)
+  #      Job         = node_exporter (optional, for grouping)
+  #      Environment = production (optional label)
+  #      Name        = web-01     (used as instance label)
+  #
+  #    Required IAM permission: ec2:DescribeInstances
+  #    Set credentials in .env:
+  #      AWS_EC2_SD_ACCESS_KEY_ID / AWS_EC2_SD_SECRET_ACCESS_KEY
+  #    OR attach an IAM instance role to the Prometheus server.
+  # ===========================================================
+  - job_name: 'ec2-sd-node-exporter'
+    ec2_sd_configs:
+      - region: us-east-1
+        access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
+        secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
+        port: 9100
+        refresh_interval: 60s
+        filters:
+          - name: tag:Scrape
+            values: ['true']
+          - name: instance-state-name
+            values: ['running']
+
+    relabel_configs:
+      # Build scrape address: use ScrapePort tag if present, else default 9100
+      - source_labels: [__meta_ec2_private_ip, __meta_ec2_tag_ScrapePort]
+        regex: '(.+);(\d+)'
+        replacement: '$1:$2'
+        target_label: __address__
+      - source_labels: [__meta_ec2_private_ip]
+        regex: '(.+)'
+        replacement: '$1:9100'
+        target_label: __address__
+
+      # instance = Name tag if set, otherwise private IP
+      - source_labels: [__meta_ec2_tag_Name]
+        regex: '(.+)'
+        target_label: instance
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: instance
+
+      # Useful EC2 metadata as labels
+      - source_labels: [__meta_ec2_region]
+        target_label: region
+      - source_labels: [__meta_ec2_availability_zone]
+        target_label: availability_zone
+      - source_labels: [__meta_ec2_instance_type]
+        target_label: instance_type
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: ec2_instance_id
+
+      # Job: prefer EC2 Job tag, else default
+      - source_labels: [__meta_ec2_tag_Job]
+        regex: '(.+)'
+        target_label: job
+      - target_label: job
+        replacement: 'node_exporter'
+
+      # Environment: prefer EC2 Environment tag
+      - source_labels: [__meta_ec2_tag_Environment]
+        regex: '(.+)'
+        target_label: environment
+
+  # EC2 SD for Alloy (log shipper) — tag: Job=alloy AND Scrape=true
+  - job_name: 'ec2-sd-alloy'
+    ec2_sd_configs:
+      - region: us-east-1
+        access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
+        secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
+        port: 12345
+        refresh_interval: 60s
+        filters:
+          - name: tag:Scrape
+            values: ['true']
+          - name: tag:Job
+            values: ['alloy']
+          - name: instance-state-name
+            values: ['running']
+
+    relabel_configs:
+      - source_labels: [__meta_ec2_private_ip]
+        regex: '(.*)'
+        replacement: '$1:12345'
+        target_label: __address__
+      - source_labels: [__meta_ec2_tag_Name]
+        regex: '(.+)'
+        target_label: instance
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: instance
+      - source_labels: [__meta_ec2_region]
+        target_label: region
+      - source_labels: [__meta_ec2_availability_zone]
+        target_label: availability_zone
+      - source_labels: [__meta_ec2_instance_type]
+        target_label: instance_type
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: ec2_instance_id
+      - target_label: job
+        replacement: 'alloy'
+      - source_labels: [__meta_ec2_tag_Environment]
+        regex: '(.+)'
+        target_label: environment

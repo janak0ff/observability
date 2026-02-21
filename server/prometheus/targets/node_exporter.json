@@ -1,0 +1,12 @@
+[
+    {
+        "targets": [
+            "host.docker.internal:9100"
+        ],
+        "labels": {
+            "job": "node_exporter",
+            "host": "client1",
+            "environment": "development"
+        }
+    }
+]

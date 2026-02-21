@@ -46,6 +46,7 @@ services:
     environment:
       - LOKI_URL=${LOKI_URL:-http://server:3100/loki/api/v1/push}
       - HOSTNAME=${HOSTNAME:-client}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
       - PROMETHEUS_URL=${PROMETHEUS_URL:-http://server:9090/api/v1/write}
 
   # Process Exporter

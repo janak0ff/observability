@@ -33,6 +33,26 @@ services:
           memory: "128m"
 
   # ===================================================
+  # DOCKER SOCKET PROXY (For Prom Docker SD)
+  # ===================================================
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: docker-socket-proxy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1  # Required for discovering containers
+      - NETWORKS=1    # Required for Prometheus to get network labels
+    networks:
+      - observability
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: "64m"
+
+  # ===================================================
   # PROMETHEUS
   # ===================================================
   prometheus:
@@ -42,6 +62,7 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/rules:/etc/prometheus/rules:ro
+      - ./prometheus/targets:/etc/prometheus/targets:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -54,11 +75,17 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     networks:
       - observability
-    environment:
-      - CLIENT_NODE_1=${CLIENT_NODE_1:-host.docker.internal:9100}
-      - CLIENT_NODE_2=${CLIENT_NODE_2:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9090"
+      prometheus.io/path: "/metrics"
+    environment:
+      # AWS EC2 Service Discovery credentials
+      # Leave empty to use an IAM instance role instead
+      - AWS_EC2_SD_ACCESS_KEY_ID=${AWS_EC2_SD_ACCESS_KEY_ID:-}
+      - AWS_EC2_SD_SECRET_ACCESS_KEY=${AWS_EC2_SD_SECRET_ACCESS_KEY:-}
     deploy:
       resources:
         limits:
@@ -72,6 +99,10 @@ services:
     image: grafana/grafana:11.4.0
     container_name: grafana
     restart: unless-stopped
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "3000"
+      prometheus.io/path: "/metrics"
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - ./grafana/plugins:/etc/grafana/provisioning/plugins:ro
@@ -107,6 +138,10 @@ services:
     image: grafana/loki:3.4.2
     container_name: loki
     restart: unless-stopped
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "3100"
+      prometheus.io/path: "/metrics"
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
       - ./loki/rules:/etc/loki/rules:ro
@@ -138,6 +173,10 @@ services:
     image: prom/alertmanager:v0.31.1
     container_name: alertmanager
     restart: unless-stopped
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9093"
+      prometheus.io/path: "/metrics"
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./alertmanager/templates:/etc/alertmanager/templates:ro
