@@ -1,10 +1,10 @@
 global:
-  scrape_interval: ${SCRAPE_INTERVAL:-15s}
-  scrape_timeout: ${SCRAPE_TIMEOUT:-10s}
-  evaluation_interval: ${SCRAPE_INTERVAL:-15s}
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
   external_labels:
     monitor: 'observability-stack'
-    environment: '${ENVIRONMENT:-development}'
+    environment: 'development'
 
 alerting:
   alertmanagers:
@@ -14,7 +14,6 @@ alerting:
 
 rule_files:
   - '/etc/prometheus/rules/alert-rules.yml'
-  - '/etc/prometheus/rules/record-rules.yml'
 
 scrape_configs:
   # Observability stack self-monitoring
@@ -34,23 +33,20 @@ scrape_configs:
     static_configs:
       - targets: ['alertmanager:9093']
 
-  # Node Exporter — all monitored servers
-  # Dev: defaults to host.docker.internal (local machine)
-  # Prod: set CLIENT_NODE_1, CLIENT_NODE_2 etc. in .env to real server IPs
+  # Node Exporter — monitored servers
   - job_name: 'node_exporter'
-    scrape_interval: ${SCRAPE_INTERVAL:-15s}
-    scrape_timeout: ${SCRAPE_TIMEOUT:-10s}
+    scrape_interval: 30s
+    scrape_timeout: 10s
     static_configs:
       - targets:
-          - '${CLIENT_NODE_1:-host.docker.internal:9100}'
-          - '${CLIENT_NODE_2:-}'
+          - 'host.docker.internal:9100'
     relabel_configs:
       - source_labels: [__address__]
         regex: '([^:]+):.*'
         target_label: instance
         replacement: '${1}'
 
-  # Alloy (log shipping agent) self-monitoring
+  # Alloy (log shipping agent)
   - job_name: 'alloy'
     static_configs:
       - targets: ['host.docker.internal:12345']

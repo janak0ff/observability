@@ -74,7 +74,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./grafana/plugins:/etc/grafana/provisioning/plugins:ro
       - grafana_data:/var/lib/grafana
     ports:
@@ -145,7 +144,6 @@ services:
       - alertmanager_data:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--config.expand-env=true'
       - '--storage.path=/alertmanager'
       - '--web.external-url=${ALERTMANAGER_EXTERNAL_URL:-http://localhost:9093}'
       - '--log.level=${ALERTMANAGER_LOG_LEVEL:-warn}'
