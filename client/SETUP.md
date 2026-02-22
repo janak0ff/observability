@@ -3,11 +3,11 @@
 ## Prerequisites
 
 
-#### Inbound Rules
-Ports: 9100,12345,9256
+#### Inbound Rules (From Server IP ONLY)
+Ports: `9100` (Node), `12345` (Alloy), `9256` (Process), `9338` (cAdvisor), `9113` (Nginx), `9506` (Jenkins)
 
 #### Outbound Rules
-Ports: 3100,9090
+Ports: `3100` (Loki), `9090` (Prometheus)
 
 > [!IMPORTANT]
 > Deploy and verify the **server** before starting the client.
@@ -91,3 +91,24 @@ loki.write "server2" {
   }
 }
 ```
+
+
+The Docker daemon metrics port is still bound to 127.0.0.1. The daemon.json change hasn't been applied on the server yet.
+
+You still need to run these commands on your server machine:
+
+bash
+# 1. Edit daemon.json — change metrics-addr to 0.0.0.0
+sudo nano /etc/docker/daemon.json
+Change it to:
+
+json
+{
+  "metrics-addr": "0.0.0.0:9323",
+  "experimental": true
+}
+Then:
+
+bash
+# 2. Restart Docker
+sudo systemctl restart docker

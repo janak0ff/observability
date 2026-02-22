@@ -1,12 +1,26 @@
 [
+    // {
+    //     "targets": [
+    //         "host.docker.internal:9100",
+    //         "host.docker.internal:12345",
+    //         "host.docker.internal:9256"
+    //     ],
+    //     "labels": {
+    //         "host": "server",
+    //         "environment": "production"
+    //     }
+    // },
     {
         "targets": [
-            "host.docker.internal:9100",
-            "host.docker.internal:12345",
-            "host.docker.internal:9256"
+            "202.51.74.35:9100",
+            "202.51.74.35:12345",
+            "202.51.74.35:9256",
+            "202.51.74.35:9338",
+            "202.51.74.35:9113",
+            "202.51.74.35:9506"
         ],
         "labels": {
-            "host": "server",
+            "host": "ubuntu35",
             "environment": "production"
         }
     }

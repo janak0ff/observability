@@ -143,6 +143,14 @@ scrape_configs:
         regex: '.+:9338'
         target_label: job
         replacement: 'cadvisor'
+      - source_labels: [__address__]
+        regex: '.+:9113'
+        target_label: job
+        replacement: 'nginx'
+      - source_labels: [__address__]
+        regex: '.+:9506'
+        target_label: job
+        replacement: 'jenkins'
 
       # Strip port from instance label so Grafana shows just the IP
       - source_labels: [__address__]

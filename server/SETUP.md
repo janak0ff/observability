@@ -3,14 +3,17 @@
 #### Inbound Rules
 Ports: 3000, 9090, 9093, 3100, 80
 #### Outbound Rules
-Ports: 443, 587, 9100, 12345, 9256
+Ports: 443, 587, 9100, 12345, 9256, 9338, 9113, 9506
 | Port | Protocol | Destination | Purpose |
 |------|----------|-------------|---------|
 | 443 | TCP | `0.0.0.0/0` | Pull Docker images from registry |
 | 587 | TCP | `0.0.0.0/0` | Alertmanager → Gmail SMTP |
-| 9100 | TCP | `34.230.91.8/32` | Prometheus scrapes client node_exporter |
-| 12345 | TCP | `34.230.91.8/32` | Prometheus scrapes client Alloy |
-| 9256 | TCP | `34.230.91.8/32` | Prometheus scrapes client process_exporter |
+| 9100 | TCP | `Client IPs` | Prometheus scrapes client node_exporter |
+| 12345 | TCP | `Client IPs` | Prometheus scrapes client Alloy |
+| 9256 | TCP | `Client IPs` | Prometheus scrapes client process_exporter |
+| 9338 | TCP | `Client IPs` | Prometheus scrapes client cAdvisor |
+| 9113 | TCP | `Client IPs` | Prometheus scrapes client nginx_exporter |
+| 9506 | TCP | `Client IPs` | Prometheus scrapes client jenkins_exporter |
 ---
 
 

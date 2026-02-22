@@ -12,6 +12,8 @@ Prometheus targets	http://54.152.52.171:9090/targets
 Alloy metrics (on client)	http://202.51.74.35:12345/metrics
 Node exporter (on client)	http://202.51.74.35:9100/metrics
 
+Start both nginx and jenkins exporters
+docker compose --profile nginx --profile jenkins up -d
 
 Adding a new node just one command:
 
@@ -24,6 +26,26 @@ And listing all nodes:
 ```bash
 jq '.[].labels.host' prometheus/targets/clients.json
 ```
+
+
+Essential Grafana Dashboards:
+- Full Node Exporter : 1860
+- Full Process Exporter : 1861
+- Full Alloy Exporter : 1862
+- NGINX exporter : 12708
+- Jenkins exporter : 12709
+Nginx Dashboard → ID: 12708
+
+Jenkins Dashboard → ID: 9964
+
+
+
+
+
+
+
+
+
 
 # Observability Stack - Client-Server Monitoring Solution
 
