@@ -80,34 +80,68 @@ services:
     networks:
       - observability
 
-  # Additional Exporters (enable as needed)
-  nginx-exporter:
-    image: nginx/nginx-prometheus-exporter:latest
-    container_name: nginx-exporter
+  # ============================================================
+  # cAdvisor (Container Advisor)
+  # Analyzes resource usage and performance characteristics of running containers
+  # REQUIRES: privileged + cgroups v2 mounts for container name resolution
+  # ============================================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
     restart: unless-stopped
+    privileged: true
     command:
-      - '-nginx.scrape-uri=${NGINX_STATUS_URL:-http://nginx:80/status}'
+      # Only scrape Docker containers, skip all systemd/cgroup slices
+      - --docker_only=true
+      # How often to collect stats per container
+      - --housekeeping_interval=15s
+      # Limit history stored in memory
+      - --max_housekeeping_interval=20s
+      # Disable metrics we don't use to reduce cardinality
+      - --disable_metrics=advtcp,cpuLoad,cpu_topology,cpuset,hugetlb,memory_numa,referenced_memory,resctrl,sched,tcp,udp
+    devices:
+      - "/dev/kmsg:/dev/kmsg"
+    volumes:
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:ro"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker/:/var/lib/docker:ro"
+      - "/dev/disk/:/dev/disk:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
     ports:
-      - "${NGINX_EXPORTER_PORT:-9113}:9113"
+      - "${CADVISOR_PORT:-9338}:8080"
     networks:
       - observability
-    profiles:
-      - nginx
+
+  # Additional Exporters (enable as needed)
+  # nginx-exporter:
+  #   image: nginx/nginx-prometheus-exporter:latest
+  #   container_name: nginx-exporter
+  #   restart: unless-stopped
+  #   command:
+  #     - '-nginx.scrape-uri=${NGINX_STATUS_URL:-http://nginx:80/status}'
+  #   ports:
+  #     - "${NGINX_EXPORTER_PORT:-9113}:9113"
+  #   networks:
+  #     - observability
+  #   profiles:
+  #     - nginx
 
   # jenkins-exporter:
-    image: bitnami/jenkins-exporter:latest
-    container_name: jenkins-exporter
-    restart: unless-stopped
-    environment:
-      - JENKINS_URI=${JENKINS_URL:-http://jenkins:8080}
-      - JENKINS_USER=${JENKINS_USER}
-      - JENKINS_PASSWORD=${JENKINS_PASSWORD}
-    ports:
-      - "${JENKINS_EXPORTER_PORT:-8080}:8080"
-    networks:
-      - observability
-    profiles:
-      - jenkins
+    # image: bitnami/jenkins-exporter:latest
+    # container_name: jenkins-exporter
+    # restart: unless-stopped
+    # environment:
+    #   - JENKINS_URI=${JENKINS_URL:-http://jenkins:8080}
+    #   - JENKINS_USER=${JENKINS_USER}
+    #   - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+    # ports:
+    #   - "${JENKINS_EXPORTER_PORT:-8080}:8080"
+    # networks:
+    #   - observability
+    # profiles:
+    #   - jenkins
 
   # postgres-exporter:
   #   image: prometheuscommunity/postgres-exporter:latest

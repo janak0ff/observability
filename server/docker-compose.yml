@@ -134,6 +134,50 @@ services:
       - loki
 
   # ===================================================
+  # ===================================================
+  # cAdvisor (Container Advisor)
+  # Analyzes resource usage and performance characteristics of running containers
+  # REQUIRES: privileged + cgroups v2 mounts for container name resolution
+  # ===================================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    labels:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+      prometheus.io/path: "/metrics"
+    command:
+      # Only scrape Docker containers, skip all systemd/cgroup slices
+      - --docker_only=true
+      # How often to collect stats per container
+      - --housekeeping_interval=15s
+      # Limit history stored in memory
+      - --max_housekeeping_interval=20s
+      # Disable metrics we don't use to reduce cardinality
+      - --disable_metrics=advtcp,cpuLoad,cpu_topology,cpuset,hugetlb,memory_numa,referenced_memory,resctrl,sched,tcp,udp
+    devices:
+      - "/dev/kmsg:/dev/kmsg"
+    volumes:
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:ro"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker/:/var/lib/docker:ro"
+      - "/dev/disk/:/dev/disk:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+    ports:
+      - "${CADVISOR_PORT:-9338}:8080"
+    networks:
+      - observability
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256m"
+
+  # ===================================================
   # LOKI
   # ===================================================
   loki:

@@ -64,6 +64,12 @@ scrape_configs:
         regex: '/(.*)'
         target_label: job
 
+      # Override job name specifically for cAdvisor (common dashboard requirement)
+      - source_labels: [__meta_docker_container_name]
+        regex: '/cadvisor'
+        target_label: job
+        replacement: 'cadvisor'
+
       # Set instance label from container name
       - source_labels: [__meta_docker_container_name]
         regex: '/(.*)'
@@ -133,6 +139,10 @@ scrape_configs:
         regex: '.+:9256'
         target_label: job
         replacement: 'process_exporter'
+      - source_labels: [__address__]
+        regex: '.+:9338'
+        target_label: job
+        replacement: 'cadvisor'
 
       # Strip port from instance label so Grafana shows just the IP
       - source_labels: [__address__]
