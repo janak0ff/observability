@@ -75,16 +75,20 @@ scrape_configs:
 
   # ===========================================================
   # 2. FILE-BASED SERVICE DISCOVERY — Client Nodes
-  #    Scrape targets are defined in JSON files under
-  #    /etc/prometheus/targets/*.json.
-  #    Prometheus reloads these files every 30s automatically —
-  #    add/remove nodes with zero Prometheus restart.
   #
-  #    File format example (targets/node_exporter.json):
+  #    All client targets live in a single file:
+  #      prometheus/targets/clients.json
+  #
+  #    Prometheus hot-reloads this file every 30 seconds.
+  #    Manage nodes automatically using:
+  #      ./scripts/add-node.sh <IP> <hostname>
+  #      ./scripts/remove-node.sh <hostname>
+  #
+  #    File format (1 block per host, all 3 ports):
   #    [
   #      {
-  #        "targets": ["10.0.1.10:9100"],
-  #        "labels": { "job": "node_exporter", "host": "web-01", "env": "production" }
+  #        "targets": ["10.0.1.10:9100", "10.0.1.10:12345", "10.0.1.10:9256"],
+  #        "labels": { "host": "web-01", "environment": "production" }
   #      }
   #    ]
   # ===========================================================

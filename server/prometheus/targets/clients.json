@@ -1,9 +1,9 @@
 [
     {
         "targets": [
-            "localhost:9100",
-            "localhost:12345",
-            "localhost:9256"
+            "host.docker.internal:9100",
+            "host.docker.internal:12345",
+            "host.docker.internal:9256"
         ],
         "labels": {
             "host": "server",

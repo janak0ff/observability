@@ -13,6 +13,18 @@ Alloy metrics (on client)	http://202.51.74.35:12345/metrics
 Node exporter (on client)	http://202.51.74.35:9100/metrics
 
 
+Adding a new node just one command:
+
+```bash
+./scripts/add-node.sh 34.230.91.8 client1
+```
+
+And listing all nodes:
+
+```bash
+jq '.[].labels.host' prometheus/targets/clients.json
+```
+
 # Observability Stack - Client-Server Monitoring Solution
 
 ## Overview

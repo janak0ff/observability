@@ -15,27 +15,18 @@ Ports: 443, 587, 9100, 12345, 9256
 
 
 
-## Step 4 — Set Prometheus File SD Targets
+## Step 4 — Add Client Nodes to Prometheus
 
-Point these at the client node (`34.230.91.8`):
+To start monitoring a client node (like `34.230.91.8`), run the add-node script. This automatically adds all 3 exporters (node_exporter, alloy, process_exporter) to Prometheus without requiring a restart.
 
 ```bash
-cat > prometheus/targets/node_exporter.json << 'EOF'
-[{"targets":["34.230.91.8:9100"],"labels":{"job":"node_exporter","host":"client1","environment":"production"}}]
-EOF
-
-cat > prometheus/targets/alloy.json << 'EOF'
-[{"targets":["34.230.91.8:12345"],"labels":{"job":"alloy","host":"client1","environment":"production"}}]
-EOF
-
-cat > prometheus/targets/process_exporter.json << 'EOF'
-[{"targets":["34.230.91.8:9256"],"labels":{"job":"process_exporter","host":"client1","environment":"production"}}]
-EOF
+cd ~/observability/server
+./scripts/add-node.sh 34.230.91.8 client1
 ```
 
-To add more nodes later, just append to any of these files and run:
+To remove a node later:
 ```bash
-curl -XPOST http://localhost:9090/-/reload
+./scripts/remove-node.sh client1
 ```
 
 ---
@@ -110,14 +101,19 @@ labels:
 Prometheus reads Docker via `tecnativa/docker-socket-proxy` (read-only, secure).
 
 ### 2. File SD — external nodes
-Edit files in `prometheus/targets/`. Prometheus hot-reloads in 30s. No restart needed.
-```json
-[
-  {"targets": ["10.0.1.10:9100"], "labels": {"job": "node_exporter", "host": "web-01", "environment": "production"}},
-  {"targets": ["10.0.1.11:9100"], "labels": {"job": "node_exporter", "host": "web-02", "environment": "production"}}
-]
+Targets are managed in a single file: `prometheus/targets/clients.json`. Prometheus hot-reloads it automatically within 30s.
+
+**Never edit the JSON manually.** Use the provided scripts on the server:
+```bash
+# Add a node (adds all 3 exporters)
+./scripts/add-node.sh <IP> <HOSTNAME> [ENVIRONMENT]
+
+# Remove a node
+./scripts/remove-node.sh <HOSTNAME>
+
+# List all monitored nodes
+jq '.[].labels.host' prometheus/targets/clients.json
 ```
-Reload: `curl -XPOST http://localhost:9090/-/reload`
 
 ### 3. EC2 SD — auto-discovers AWS EC2 instances
 Tag EC2 instances in the AWS Console:
@@ -185,34 +181,10 @@ for i in 1 2 3 4; do (while true; do :; done) & done; sleep 360 && kill $(jobs -
 
 
 ---
-### 4d. Set File SD targets to point to the client
+### 4d. Add the Client Node to Prometheus
 ```bash
-cat > prometheus/targets/node_exporter.json << 'EOF'
-[
-  {
-    "targets": ["34.230.91.8:9100"],
-    "labels": {"job": "node_exporter", "host": "client1", "environment": "production"}
-  }
-]
-EOF
-
-cat > prometheus/targets/alloy.json << 'EOF'
-[
-  {
-    "targets": ["34.230.91.8:12345"],
-    "labels": {"job": "alloy", "host": "client1", "environment": "production"}
-  }
-]
-EOF
-
-cat > prometheus/targets/process_exporter.json << 'EOF'
-[
-  {
-    "targets": ["34.230.91.8:9256"],
-    "labels": {"job": "process_exporter", "host": "client1", "environment": "production"}
-  }
-]
-EOF
+cd ~/observability/server
+./scripts/add-node.sh 34.230.91.8 client1
 ```
 
 
@@ -236,3 +208,17 @@ curl -s http://54.152.52.171:3100/ready
 
 # Reload Prometheus config without restart
 curl -X POST http://localhost:9090/-/reload
+
+
+
+Adding a new node just one command:
+
+```bash
+./scripts/add-node.sh 34.230.91.8 client1
+```
+
+And listing all nodes:
+
+```bash
+jq '.[].labels.host' prometheus/targets/clients.json
+```
