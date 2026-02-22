@@ -150,9 +150,35 @@ scrape_configs:
         target_label: instance
         replacement: '$1'
 
+      # Fix the server's own node_exporter instance label:
+      # host.docker.internal is a Docker alias; normalise to 'server' for dashboards
+      - source_labels: [__address__]
+        regex: 'host\.docker\.internal:9100'
+        target_label: instance
+        replacement: 'server'
+
 
   # ===========================================================
-  # 3. AWS EC2 SERVICE DISCOVERY (disabled by default)
+  # 3. DOCKER ENGINE METRICS
+  #    Scrapes the Docker daemon's own metrics (container counts,
+  #    image builds, health checks, swarm events, etc.)
+  #    Required for Grafana dashboard 10619.
+  #
+  #    PREREQUISITE: Add to /etc/docker/daemon.json on every host:
+  #      { "metrics-addr": "127.0.0.1:9323", "experimental": true }
+  #    Then: sudo systemctl restart docker
+  # ===========================================================
+  - job_name: 'docker-engine'
+    static_configs:
+      - targets:
+          # Server's own Docker daemon (via host.docker.internal bridge)
+          - 'host.docker.internal:9323'
+    relabel_configs:
+      - target_label: instance
+        replacement: 'server'
+
+  # ===========================================================
+  # 4. AWS EC2 SERVICE DISCOVERY (disabled by default)
   #    Uncomment these jobs ONLY if you have AWS EC2 SD credentials
   #    set in .env: AWS_EC2_SD_ACCESS_KEY_ID, AWS_EC2_SD_SECRET_ACCESS_KEY,
   #    AWS_EC2_SD_REGION
