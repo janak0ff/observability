@@ -146,9 +146,16 @@ DEFAULT_ALERT_EMAIL=oncall@yourcompany.com
 
 Test:
 ```bash
-curl -XPOST http://localhost:9093/api/v1/alerts \
+curl -XPOST http://localhost:9093/api/v2/alerts \
   -H 'Content-Type: application/json' \
-  -d '[{"labels":{"alertname":"TestAlert","severity":"critical"}}]'
+  -d '[
+    {
+      "labels": {
+        "alertname": "TestAlertServer",
+        "severity": "critical"
+      }
+    }
+  ]'
 ```
 
 ---
@@ -167,12 +174,10 @@ python3 -c "import time; a = bytearray(8 * 1024**3); print('Memory allocated!');
 CPU stress for just 2 minutes
 echo "Starting 2-minute CPU stress... DO NOT close this terminal!"
 for i in 1 2 3 4; do (while true; do :; done) & pids+=" $!"; done
-sleep 120 && kill $pids && echo "Done! Check your email."
+sleep 380 && kill $pids && echo "Done! Check your email."
 
 
-echo "Starting 6-minute CPU stress... DO NOT close this terminal!"
-for i in 1 2 3 4; do (while true; do :; done) & pids+=" $!"; done
-sleep 360 && kill $pids && echo "Done! Check your email."
+
 
 
 for i in 1 2 3 4; do (while true; do :; done) & done; sleep 360 && kill $(jobs -p) 2>/dev/null

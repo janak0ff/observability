@@ -180,14 +180,27 @@ services:
       prometheus.io/port: "9093"
       prometheus.io/path: "/metrics"
     volumes:
-      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      # Mount config read-only as a template
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tmpl:ro
       - ./alertmanager/templates:/etc/alertmanager/templates:ro
       - alertmanager_data:/alertmanager
+    entrypoint: /bin/sh
     command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=${ALERTMANAGER_EXTERNAL_URL:-http://localhost:9093}'
-      - '--log.level=${ALERTMANAGER_LOG_LEVEL:-warn}'
+      - -c
+      - |
+        # Render the config template with environment variables using sed
+        sed -e "s|\$${SMTP_FROM}|$${SMTP_FROM}|g" \
+            -e "s|\$${SMTP_AUTH_USERNAME}|$${SMTP_AUTH_USERNAME}|g" \
+            -e "s|\$${SMTP_AUTH_PASSWORD}|$${SMTP_AUTH_PASSWORD}|g" \
+            -e "s|\$${DEFAULT_ALERT_EMAIL}|$${DEFAULT_ALERT_EMAIL}|g" \
+            /etc/alertmanager/alertmanager.yml.tmpl > /etc/alertmanager/alertmanager.yml
+        
+        # Start Alertmanager with the rendered config
+        exec /bin/alertmanager \
+          --config.file=/etc/alertmanager/alertmanager.yml \
+          --storage.path=/alertmanager \
+          --web.external-url=$${ALERTMANAGER_EXTERNAL_URL:-http://localhost:9093} \
+          --log.level=$${ALERTMANAGER_LOG_LEVEL:-warn}
     ports:
       - "${ALERTMANAGER_PORT:-9093}:9093"
     networks:
