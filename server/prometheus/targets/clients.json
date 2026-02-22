@@ -1,0 +1,35 @@
+[
+    {
+        "targets": [
+            "localhost:9100",
+            "localhost:12345",
+            "localhost:9256"
+        ],
+        "labels": {
+            "host": "server",
+            "environment": "production"
+        }
+    },
+    {
+        "targets": [
+            "34.230.91.8:9100",
+            "34.230.91.8:12345",
+            "34.230.91.8:9256"
+        ],
+        "labels": {
+            "host": "client1",
+            "environment": "production"
+        }
+    },
+    {
+        "targets": [
+            "202.51.74.35:9100",
+            "202.51.74.35:12345",
+            "202.51.74.35:9256"
+        ],
+        "labels": {
+            "host": "client35",
+            "environment": "production"
+        }
+    }
+]

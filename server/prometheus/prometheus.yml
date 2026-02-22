@@ -86,39 +86,54 @@ scrape_configs:
   #      }
   #    ]
   # ===========================================================
-  - job_name: 'file-sd-node-exporter'
+  # ===========================================================
+  # 2. FILE-BASED SERVICE DISCOVERY — Client Nodes
+  #
+  #    All client targets live in a single file:
+  #      prometheus/targets/clients.json
+  #
+  #    To add a node:    ./scripts/add-node.sh <IP> <hostname>
+  #    To remove a node: ./scripts/remove-node.sh <hostname>
+  #    To list nodes:    jq '.[].labels' prometheus/targets/clients.json
+  #
+  #    Prometheus hot-reloads this file every 30 seconds —
+  #    no restart needed when adding or removing nodes.
+  #
+  #    File format (all exporters for one node in one file):
+  #    [
+  #      {"targets":["10.0.1.10:9100"], "labels":{"job":"node_exporter",   "host":"web-01","environment":"production"}},
+  #      {"targets":["10.0.1.10:12345"],"labels":{"job":"alloy",           "host":"web-01","environment":"production"}},
+  #      {"targets":["10.0.1.10:9256"], "labels":{"job":"process_exporter","host":"web-01","environment":"production"}}
+  #    ]
+  # ===========================================================
+  - job_name: 'file-sd-clients'
     file_sd_configs:
       - files:
-          - '/etc/prometheus/targets/node_exporter.json'
+          - '/etc/prometheus/targets/*.json'   # wildcard — picks up any new *.json file automatically
         refresh_interval: 30s
     relabel_configs:
-      # Clean up instance label to just hostname (strip port)
+      # Derive the job label from the port number.
+      # This lets clients.json use one block per host (all 3 ports together)
+      # without needing to hardcode the job in each entry.
+      - source_labels: [__address__]
+        regex: '.+:9100'
+        target_label: job
+        replacement: 'node_exporter'
+      - source_labels: [__address__]
+        regex: '.+:12345'
+        target_label: job
+        replacement: 'alloy'
+      - source_labels: [__address__]
+        regex: '.+:9256'
+        target_label: job
+        replacement: 'process_exporter'
+
+      # Strip port from instance label so Grafana shows just the IP
       - source_labels: [__address__]
         regex: '([^:]+):.*'
         target_label: instance
         replacement: '$1'
 
-  - job_name: 'file-sd-alloy'
-    file_sd_configs:
-      - files:
-          - '/etc/prometheus/targets/alloy.json'
-        refresh_interval: 30s
-    relabel_configs:
-      - source_labels: [__address__]
-        regex: '([^:]+):.*'
-        target_label: instance
-        replacement: '$1'
-
-  - job_name: 'file-sd-process-exporter'
-    file_sd_configs:
-      - files:
-          - '/etc/prometheus/targets/process_exporter.json'
-        refresh_interval: 30s
-    relabel_configs:
-      - source_labels: [__address__]
-        regex: '([^:]+):.*'
-        target_label: instance
-        replacement: '$1'
 
   # ===========================================================
   # 3. AWS EC2 SERVICE DISCOVERY
