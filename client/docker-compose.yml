@@ -6,9 +6,13 @@ networks:
         - subnet: 172.21.0.0/16
 
 services:
-  # Node Exporter - System metrics
+  # ============================================================
+  # NODE EXPORTER
+  # Exposes hardware and OS metrics (CPU, RAM, disk, network)
+  # Prometheus scrapes this from the server via File SD
+  # ============================================================
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.9.0   # pin version for reproducibility
     container_name: node-exporter
     restart: unless-stopped
     volumes:
@@ -25,12 +29,19 @@ services:
     networks:
       - observability
 
-  # Alloy for log collection
+  # ============================================================
+  # ALLOY
+  # Log collection and metrics forwarding agent:
+  #   - Reads /var/log/* and forwards to Loki
+  #   - Reads Docker container logs and forwards to Loki
+  #   - Scrapes Docker daemon metrics and remote-writes to Prometheus
+  # Expose port ${ALLOY_PORT} for Prometheus to scrape Alloy's own metrics
+  # ============================================================
   alloy:
-    image: grafana/alloy:latest
+    image: grafana/alloy:v1.7.4   # pin version for reproducibility
     container_name: alloy
     restart: unless-stopped
-    user: root
+    user: root                    # required to read /var/log and Docker socket
     volumes:
       - ./configs/config.alloy:/etc/alloy/config.alloy
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -43,13 +54,19 @@ services:
       - observability
     environment:
       - LOKI_URL=${LOKI_URL:-http://server:3100/loki/api/v1/push}
-      - HOSTNAME=${HOSTNAME:-client}
+      # NODE_HOSTNAME is used instead of HOSTNAME to avoid conflict with the
+      # reserved $HOSTNAME shell variable which Docker Compose reads from the host
+      - NODE_HOSTNAME=${NODE_HOSTNAME:-client}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - PROMETHEUS_URL=${PROMETHEUS_URL:-http://server:9090/api/v1/write}
 
-  # Process Exporter
+  # ============================================================
+  # PROCESS EXPORTER
+  # Exposes per-process CPU, memory, and file descriptor metrics
+  # Config: configs/process-exporter/process.yml
+  # ============================================================
   process-exporter:
-    image: ncabatoff/process-exporter:latest
+    image: ncabatoff/process-exporter:0.8.5   # pin version for reproducibility
     container_name: process-exporter
     restart: unless-stopped
     volumes:

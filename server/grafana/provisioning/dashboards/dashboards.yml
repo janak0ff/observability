@@ -1,0 +1,26 @@
+# ============================================================
+# Grafana Dashboard Auto-Provisioning
+# ============================================================
+# This file tells Grafana where to find dashboard JSON files.
+# Any .json file placed in /var/lib/grafana/dashboards/
+# (mounted from ./grafana/dashboards/ on the host) will be
+# automatically imported when Grafana starts.
+#
+# To add a new dashboard:
+#   1. Place its JSON file in server/grafana/dashboards/
+#   2. Restart Grafana: docker compose restart grafana
+#   3. It will appear in Dashboards automatically.
+# ============================================================
+
+apiVersion: 1
+
+providers:
+  - name: 'default'
+    orgId: 1
+    type: file
+    disableDeletion: false      # allow deletion from UI
+    updateIntervalSeconds: 30   # hot-reload every 30s — no restart needed
+    allowUiUpdates: true        # allow saving edits made in the UI
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

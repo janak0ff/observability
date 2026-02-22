@@ -69,8 +69,9 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
       - '--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-10GB}'
-      - '--web.enable-lifecycle'
-      - '--web.enable-remote-write-receiver'
+      - '--web.enable-lifecycle'           # enables POST /-/reload for hot-reload
+      - '--web.enable-remote-write-receiver' # enables Alloy remote-write
+      - '--config.expand-env=true'         # allows ${ENV_VAR} in prometheus.yml
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     networks:
@@ -106,6 +107,9 @@ services:
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - ./grafana/plugins:/etc/grafana/provisioning/plugins:ro
+      # Auto-provision dashboards from the grafana/dashboards/ folder
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "${GRAFANA_PORT:-3000}:3000"

@@ -22,51 +22,48 @@
 // ============================================================
 
 // Package manager logs: apt & dpkg
+// These files always exist on Ubuntu/Debian servers
 loki.source.file "apt_logs" {
   targets = [
-    {__path__ = "/var/log/dpkg.log",       "job" = "package_manager", "app" = "dpkg",  "log_type" = "packages"},
-    {__path__ = "/var/log/apt/history.log", "job" = "package_manager", "app" = "apt",   "log_type" = "packages"},
-    {__path__ = "/var/log/apt/term.log",    "job" = "package_manager", "app" = "apt",   "log_type" = "packages"},
+    {__path__ = "/var/log/dpkg.log",       "job" = "package_manager", "app" = "dpkg", "log_type" = "packages"},
+    {__path__ = "/var/log/apt/history.log", "job" = "package_manager", "app" = "apt",  "log_type" = "packages"},
+    {__path__ = "/var/log/apt/term.log",    "job" = "package_manager", "app" = "apt",  "log_type" = "packages"},
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
 
-// Boot & system logs
+// Boot & system logs: always available on any Linux server
 loki.source.file "boot_logs" {
   targets = [
-    {__path__ = "/var/log/boot.log",         "job" = "system", "app" = "boot",         "log_type" = "boot"},
     {__path__ = "/var/log/alternatives.log", "job" = "system", "app" = "alternatives", "log_type" = "system"},
     {__path__ = "/var/log/fontconfig.log",   "job" = "system", "app" = "fontconfig",   "log_type" = "system"},
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
 
-// Display server logs (Xorg / sddm)
-loki.source.file "display_logs" {
+// Auth logs: SSH login attempts, sudo usage
+// Crucial for security auditing
+loki.source.file "auth_logs" {
   targets = [
-    {__path__ = "/var/log/Xorg.0.log", "job" = "display", "app" = "xorg", "log_type" = "display"},
-    {__path__ = "/var/log/sddm.log",   "job" = "display", "app" = "sddm", "log_type" = "display"},
+    {__path__ = "/var/log/auth.log",   "job" = "security", "app" = "auth",   "log_type" = "auth"},
+    {__path__ = "/var/log/syslog",     "job" = "system",   "app" = "syslog", "log_type" = "syslog"},
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
 
-// Printing logs (CUPS)
-loki.source.file "cups_logs" {
-  targets = [
-    {__path__ = "/var/log/cups/access_log", "job" = "cups", "app" = "cups", "log_type" = "access"},
-    {__path__ = "/var/log/cups/error_log",  "job" = "cups", "app" = "cups", "log_type" = "error"},
-  ]
-  forward_to = [loki.process.system_logs.receiver]
-}
+// NOTE: display_logs (Xorg/sddm) and cups_logs are intentionally omitted
+// because they don't exist on headless servers and cause startup errors.
 
 // Shared processing pipeline for all system file logs
 loki.process "system_logs" {
   forward_to = [loki.write.server.receiver]
 
+  // Attach infrastructure identity labels to every log line
+  // These values come from .env via docker-compose environment block
   stage.static_labels {
     values = {
       source      = "file",
-      host        = env("HOSTNAME"),
+      host        = env("NODE_HOSTNAME"),   // set NODE_HOSTNAME in .env
       environment = env("ENVIRONMENT"),
       collector   = "alloy",
     }
@@ -131,18 +128,18 @@ loki.source.docker "docker_logs" {
 loki.process "docker_logs" {
   forward_to = [loki.write.server.receiver]
 
-  // Add shared infrastructure labels
+  // Attach infrastructure identity labels to every container log line
   stage.static_labels {
     values = {
       source      = "docker",
-      host        = env("HOSTNAME"),
+      host        = env("NODE_HOSTNAME"),   // set NODE_HOSTNAME in .env
       environment = env("ENVIRONMENT"),
       collector   = "alloy",
     }
   }
 
   // Try to parse JSON-formatted log lines (e.g. from Node.js, Go apps)
-  // If the log is not JSON, this stage is a no-op
+  // If the log is not JSON, this stage is a no-op — no error, just skipped
   stage.json {
     expressions = {
       level   = "",
@@ -174,17 +171,19 @@ loki.write "server" {
 
 // ============================================================
 // DOCKER DAEMON METRICS (port 9323)
+// Requires: add {"metrics-addr":"127.0.0.1:9323"} to /etc/docker/daemon.json
+// and restart Docker (sudo systemctl restart docker)
 // ============================================================
-
 prometheus.scrape "docker_metrics" {
   targets = [
-    {"__address__" = "localhost:9323", "job" = "docker", "host" = env("HOSTNAME")},
+    // Docker daemon exposes its own metrics on port 9323
+    {"__address__" = "localhost:9323", "job" = "docker", "host" = env("NODE_HOSTNAME")},
   ]
   forward_to      = [prometheus.relabel.add_labels.receiver]
   scrape_interval = "30s"
 }
 
-// Add environment label to all scraped metrics
+// Add environment and collector labels to all scraped metrics
 prometheus.relabel "add_labels" {
   forward_to = [prometheus.remote_write.metrics.receiver]
 
@@ -199,14 +198,16 @@ prometheus.relabel "add_labels" {
   }
 }
 
-// Remote write to Prometheus
+// Remote-write metrics to Prometheus on the server
+// PROMETHEUS_URL is set in .env → docker-compose passes it as an env var
 prometheus.remote_write "metrics" {
   endpoint {
     url = env("PROMETHEUS_URL")
   }
 
+  // These labels are attached to every metric sent from this node
   external_labels = {
-    host        = env("HOSTNAME"),
+    host        = env("NODE_HOSTNAME"),
     environment = env("ENVIRONMENT"),
   }
 }

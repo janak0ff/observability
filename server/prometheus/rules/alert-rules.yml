@@ -82,3 +82,13 @@ groups:
         annotations:
           summary: "Grafana is down"
           description: "Grafana has been unreachable for more than 2 minutes."
+
+      - alert: AlertmanagerDown
+        # If Alertmanager is down, ALL alerts are silently dropped — critical to catch this
+        expr: up{job="alertmanager"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager is down"
+          description: "Alertmanager has been unreachable for more than 2 minutes. No alerts can be sent while it is down."

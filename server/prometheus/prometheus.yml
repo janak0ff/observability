@@ -1,10 +1,16 @@
+# ============================================================
+# Global scrape settings — all values read from .env via
+# --config.expand-env=true (set in docker-compose.yml)
+# ============================================================
 global:
-  scrape_interval: 15s
-  scrape_timeout: 10s
-  evaluation_interval: 15s
+  scrape_interval: ${SCRAPE_INTERVAL:-15s}
+  scrape_timeout: ${SCRAPE_TIMEOUT:-10s}
+  evaluation_interval: ${SCRAPE_INTERVAL:-15s}
   external_labels:
+    # Identifies which Prometheus instance sent an alert/metric
     monitor:     'observability-stack'
-    environment: 'development'
+    # Reflects the ENVIRONMENT value set in your .env file
+    environment: '${ENVIRONMENT:-development}'
     host:        'server'
 
 alerting:
@@ -132,7 +138,8 @@ scrape_configs:
   # ===========================================================
   - job_name: 'ec2-sd-node-exporter'
     ec2_sd_configs:
-      - region: us-east-1
+        # AWS region — set AWS_EC2_SD_REGION in .env, default us-east-1
+      - region: ${AWS_EC2_SD_REGION:-us-east-1}
         access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
         secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
         port: 9100
@@ -186,7 +193,8 @@ scrape_configs:
   # EC2 SD for Alloy (log shipper) — tag: Job=alloy AND Scrape=true
   - job_name: 'ec2-sd-alloy'
     ec2_sd_configs:
-      - region: us-east-1
+        # Same region as above — controlled by AWS_EC2_SD_REGION in .env
+      - region: ${AWS_EC2_SD_REGION:-us-east-1}
         access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
         secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
         port: 12345
