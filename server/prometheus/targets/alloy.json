@@ -1,21 +1,11 @@
 [
     {
         "targets": [
-            "34.230.91.8:12345"
+            "localhost:12345"
         ],
         "labels": {
             "job": "alloy",
-            "host": "client1",
-            "environment": "production"
-        }
-    },
-    {
-        "targets": [
-            "202.51.74.35:12345"
-        ],
-        "labels": {
-            "job": "alloy",
-            "host": "client2",
+            "host": "localhost",
             "environment": "production"
         }
     }

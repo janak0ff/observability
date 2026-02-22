@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   observability:
     driver: bridge
@@ -66,33 +64,33 @@ services:
       - observability
 
   # Additional Exporters (enable as needed)
-  nginx-exporter:
-    image: nginx/nginx-prometheus-exporter:latest
-    container_name: nginx-exporter
-    restart: unless-stopped
-    command:
-      - '-nginx.scrape-uri=${NGINX_STATUS_URL:-http://nginx:80/status}'
-    ports:
-      - "${NGINX_EXPORTER_PORT:-9113}:9113"
-    networks:
-      - observability
-    profiles:
-      - nginx
+  # nginx-exporter:
+  #   image: nginx/nginx-prometheus-exporter:latest
+  #   container_name: nginx-exporter
+  #   restart: unless-stopped
+  #   command:
+  #     - '-nginx.scrape-uri=${NGINX_STATUS_URL:-http://nginx:80/status}'
+  #   ports:
+  #     - "${NGINX_EXPORTER_PORT:-9113}:9113"
+  #   networks:
+  #     - observability
+  #   profiles:
+  #     - nginx
 
-  jenkins-exporter:
-    image: bitnami/jenkins-exporter:latest
-    container_name: jenkins-exporter
-    restart: unless-stopped
-    environment:
-      - JENKINS_URI=${JENKINS_URL:-http://jenkins:8080}
-      - JENKINS_USER=${JENKINS_USER}
-      - JENKINS_PASSWORD=${JENKINS_PASSWORD}
-    ports:
-      - "${JENKINS_EXPORTER_PORT:-8080}:8080"
-    networks:
-      - observability
-    profiles:
-      - jenkins
+  # jenkins-exporter:
+  #   image: bitnami/jenkins-exporter:latest
+  #   container_name: jenkins-exporter
+  #   restart: unless-stopped
+  #   environment:
+  #     - JENKINS_URI=${JENKINS_URL:-http://jenkins:8080}
+  #     - JENKINS_USER=${JENKINS_USER}
+  #     - JENKINS_PASSWORD=${JENKINS_PASSWORD}
+  #   ports:
+  #     - "${JENKINS_EXPORTER_PORT:-8080}:8080"
+  #   networks:
+  #     - observability
+  #   profiles:
+  #     - jenkins
 
   # postgres-exporter:
   #   image: prometheuscommunity/postgres-exporter:latest

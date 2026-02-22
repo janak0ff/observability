@@ -1,21 +1,11 @@
 [
     {
         "targets": [
-            "34.230.91.8:9256"
+            "localhost:9256"
         ],
         "labels": {
             "job": "process_exporter",
-            "host": "client1",
-            "environment": "production"
-        }
-    },
-    {
-        "targets": [
-            "202.51.74.35:9256"
-        ],
-        "labels": {
-            "job": "process_exporter",
-            "host": "client2",
+            "host": "localhost",
             "environment": "production"
         }
     }
