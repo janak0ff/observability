@@ -18,11 +18,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
@@ -59,7 +54,7 @@ services:
       - '--web.enable-lifecycle'              # enables POST /-/reload for hot-reload
       - '--web.enable-remote-write-receiver'  # enables Alloy remote-write
     ports:
-      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     networks:
       - observability
     extra_hosts:
@@ -68,11 +63,6 @@ services:
       prometheus.io/scrape: "true"
       prometheus.io/port: "9090"
       prometheus.io/path: "/metrics"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     environment:
       # Passed to prometheus.yml external_labels via ${ENVIRONMENT} expansion
       - ENVIRONMENT=${ENVIRONMENT:-production}
@@ -98,15 +88,8 @@ services:
       prometheus.io/scrape: "true"
       prometheus.io/port: "3000"
       prometheus.io/path: "/metrics"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
@@ -145,18 +128,13 @@ services:
       prometheus.io/scrape: "true"
       prometheus.io/port: "3100"
       prometheus.io/path: "/metrics"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
       - ./loki/rules:/etc/loki/rules:ro
       - loki_data:/loki
     command: -config.file=/etc/loki/loki-config.yaml -config.expand-env=true
     ports:
-      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+      - "${LOKI_PORT:-3100}:3100"
     networks:
       - observability
     environment:
@@ -185,35 +163,8 @@ services:
       prometheus.io/scrape: "true"
       prometheus.io/port: "9093"
       prometheus.io/path: "/metrics"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    volumes:
-      # Mount config read-only as a template
-      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tmpl:ro
-      - ./alertmanager/templates:/etc/alertmanager/templates:ro
-      - alertmanager_data:/alertmanager
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        # Render the config template with environment variables using sed
-        sed -e "s|\$${SMTP_FROM}|$${SMTP_FROM}|g" \
-            -e "s|\$${SMTP_AUTH_USERNAME}|$${SMTP_AUTH_USERNAME}|g" \
-            -e "s|\$${SMTP_AUTH_PASSWORD}|$${SMTP_AUTH_PASSWORD}|g" \
-            -e "s|\$${DEFAULT_ALERT_EMAIL}|$${DEFAULT_ALERT_EMAIL}|g" \
-            /etc/alertmanager/alertmanager.yml.tmpl > /etc/alertmanager/alertmanager.yml
-        
-        # Start Alertmanager with the rendered config
-        exec /bin/alertmanager \
-          --config.file=/etc/alertmanager/alertmanager.yml \
-          --storage.path=/alertmanager \
-          --web.external-url=$${ALERTMANAGER_EXTERNAL_URL:-http://localhost:9093} \
-          --log.level=$${ALERTMANAGER_LOG_LEVEL:-warn}
     ports:
-      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
+      - "${ALERTMANAGER_PORT:-9093}:9093"
     networks:
       - observability
     environment:

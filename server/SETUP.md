@@ -230,3 +230,6 @@ And listing all nodes:
 ```bash
 jq '.[].labels.host' prometheus/targets/clients.json
 ```
+
+
+docker compose up -d --remove-orphans
