@@ -18,6 +18,11 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
@@ -32,31 +37,13 @@ services:
           cpus: "0.25"
           memory: "128m"
 
-  # ===================================================
-  # DOCKER SOCKET PROXY (For Prom Docker SD)
-  # ===================================================
-  docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
-    container_name: docker-socket-proxy
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    environment:
-      - CONTAINERS=1  # Required for discovering containers
-      - NETWORKS=1    # Required for Prometheus to get network labels
-    networks:
-      - observability
-    deploy:
-      resources:
-        limits:
-          cpus: "0.1"
-          memory: "64m"
+
 
   # ===================================================
   # PROMETHEUS
   # ===================================================
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.0.1
     container_name: prometheus
     restart: unless-stopped
     volumes:
@@ -72,7 +59,7 @@ services:
       - '--web.enable-lifecycle'              # enables POST /-/reload for hot-reload
       - '--web.enable-remote-write-receiver'  # enables Alloy remote-write
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     networks:
       - observability
     extra_hosts:
@@ -81,6 +68,11 @@ services:
       prometheus.io/scrape: "true"
       prometheus.io/port: "9090"
       prometheus.io/path: "/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     environment:
       # Passed to prometheus.yml external_labels via ${ENVIRONMENT} expansion
       - ENVIRONMENT=${ENVIRONMENT:-production}
@@ -99,15 +91,22 @@ services:
   # GRAFANA
   # ===================================================
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.4.0
     container_name: grafana
     restart: unless-stopped
     labels:
       prometheus.io/scrape: "true"
       prometheus.io/port: "3000"
       prometheus.io/path: "/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
@@ -133,68 +132,31 @@ services:
       - prometheus
       - loki
 
-  # ===================================================
-  # ===================================================
-  # cAdvisor (Container Advisor)
-  # Analyzes resource usage and performance characteristics of running containers
-  # REQUIRES: privileged + cgroups v2 mounts for container name resolution
-  # ===================================================
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
-    restart: unless-stopped
-    privileged: true
-    labels:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "8080"
-      prometheus.io/path: "/metrics"
-    command:
-      # Only scrape Docker containers, skip all systemd/cgroup slices
-      - --docker_only=true
-      # How often to collect stats per container
-      - --housekeeping_interval=15s
-      # Limit history stored in memory
-      - --max_housekeeping_interval=20s
-      # Disable metrics we don't use to reduce cardinality
-      - --disable_metrics=advtcp,cpuLoad,cpu_topology,cpuset,hugetlb,memory_numa,referenced_memory,resctrl,sched,tcp,udp
-    devices:
-      - "/dev/kmsg:/dev/kmsg"
-    volumes:
-      - "/:/rootfs:ro"
-      - "/var/run:/var/run:ro"
-      - "/sys:/sys:ro"
-      - "/var/lib/docker/:/var/lib/docker:ro"
-      - "/dev/disk/:/dev/disk:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
-    ports:
-      - "${CADVISOR_PORT:-9338}:8080"
-    networks:
-      - observability
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: "256m"
+
 
   # ===================================================
   # LOKI
   # ===================================================
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.3.2
     container_name: loki
     restart: unless-stopped
     labels:
       prometheus.io/scrape: "true"
       prometheus.io/port: "3100"
       prometheus.io/path: "/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
       - ./loki/rules:/etc/loki/rules:ro
       - loki_data:/loki
     command: -config.file=/etc/loki/loki-config.yaml -config.expand-env=true
     ports:
-      - "${LOKI_PORT:-3100}:3100"
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
     networks:
       - observability
     environment:
@@ -216,13 +178,18 @@ services:
   # ALERTMANAGER
   # ===================================================
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager:v0.28.0
     container_name: alertmanager
     restart: unless-stopped
     labels:
       prometheus.io/scrape: "true"
       prometheus.io/port: "9093"
       prometheus.io/path: "/metrics"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     volumes:
       # Mount config read-only as a template
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tmpl:ro
@@ -246,7 +213,7 @@ services:
           --web.external-url=$${ALERTMANAGER_EXTERNAL_URL:-http://localhost:9093} \
           --log.level=$${ALERTMANAGER_LOG_LEVEL:-warn}
     ports:
-      - "${ALERTMANAGER_PORT:-9093}:9093"
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
     networks:
       - observability
     environment:

@@ -26,58 +26,7 @@ rule_files:
 
 scrape_configs:
 
-  # ===========================================================
-  # 1. DOCKER SERVICE DISCOVERY
-  #    Auto-discovers all containers in the Docker network.
-  #    A container is scraped only if it has the label:
-  #      prometheus.io/scrape: "true"
-  #    Optional container labels:
-  #      prometheus.io/port: "8080"   (default: first exposed port)
-  #      prometheus.io/path: "/metrics" (default: /metrics)
-  # ===========================================================
-  - job_name: 'docker-sd'
-    docker_sd_configs:
-      - host: http://docker-socket-proxy:2375
-        refresh_interval: 30s
 
-    relabel_configs:
-      # Drop containers that don't have prometheus.io/scrape=true
-      - source_labels: [__meta_docker_container_label_prometheus_io_scrape]
-        action: keep
-        regex: 'true'
-
-      # Use custom port if prometheus.io/port label is set
-      - source_labels: [__address__, __meta_docker_container_label_prometheus_io_port]
-        action: replace
-        regex: '([^:]+)(?::\d+)?;(\d+)'
-        replacement: '$1:$2'
-        target_label: __address__
-
-      # Use custom metrics path if prometheus.io/path label is set
-      - source_labels: [__meta_docker_container_label_prometheus_io_path]
-        action: replace
-        target_label: __metrics_path__
-        regex: '(.+)'
-
-      # Set job label from container name
-      - source_labels: [__meta_docker_container_name]
-        regex: '/(.*)'
-        target_label: job
-
-      # Override job name specifically for cAdvisor (common dashboard requirement)
-      - source_labels: [__meta_docker_container_name]
-        regex: '/cadvisor'
-        target_label: job
-        replacement: 'cadvisor'
-
-      # Set instance label from container name
-      - source_labels: [__meta_docker_container_name]
-        regex: '/(.*)'
-        target_label: instance
-
-      # Carry the container image as a label
-      - source_labels: [__meta_docker_container_image]
-        target_label: image
 
   # ===========================================================
   # 2. FILE-BASED SERVICE DISCOVERY — Client Nodes
@@ -166,24 +115,7 @@ scrape_configs:
         replacement: 'server'
 
 
-  # ===========================================================
-  # 3. DOCKER ENGINE METRICS
-  #    Scrapes the Docker daemon's own metrics (container counts,
-  #    image builds, health checks, swarm events, etc.)
-  #    Required for Grafana dashboard 10619.
-  #
-  #    PREREQUISITE: Add to /etc/docker/daemon.json on every host:
-  #      { "metrics-addr": "127.0.0.1:9323", "experimental": true }
-  #    Then: sudo systemctl restart docker
-  # ===========================================================
-  - job_name: 'docker-engine'
-    static_configs:
-      - targets:
-          # Server's own Docker daemon (via host.docker.internal bridge)
-          - 'host.docker.internal:9323'
-    relabel_configs:
-      - target_label: instance
-        replacement: 'server'
+
 
   # ===========================================================
   # 4. AWS EC2 SERVICE DISCOVERY (disabled by default)
