@@ -12,7 +12,7 @@ services:
   # ===================================================
   nginx:
     profiles: [nginx]
-    image: nginx:1.27-alpine
+    image: nginx:latest
     container_name: nginx
     restart: unless-stopped
     ports:
@@ -56,7 +56,7 @@ services:
   # PROMETHEUS
   # ===================================================
   prometheus:
-    image: prom/prometheus:v3.2.1
+    image: prom/prometheus:latest
     container_name: prometheus
     restart: unless-stopped
     volumes:
@@ -69,9 +69,8 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
       - '--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-10GB}'
-      - '--web.enable-lifecycle'           # enables POST /-/reload for hot-reload
-      - '--web.enable-remote-write-receiver' # enables Alloy remote-write
-      - '--config.expand-env=true'         # allows ${ENV_VAR} in prometheus.yml
+      - '--web.enable-lifecycle'              # enables POST /-/reload for hot-reload
+      - '--web.enable-remote-write-receiver'  # enables Alloy remote-write
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     networks:
@@ -83,10 +82,13 @@ services:
       prometheus.io/port: "9090"
       prometheus.io/path: "/metrics"
     environment:
+      # Passed to prometheus.yml external_labels via ${ENVIRONMENT} expansion
+      - ENVIRONMENT=${ENVIRONMENT:-production}
       # AWS EC2 Service Discovery credentials
       # Leave empty to use an IAM instance role instead
       - AWS_EC2_SD_ACCESS_KEY_ID=${AWS_EC2_SD_ACCESS_KEY_ID:-}
       - AWS_EC2_SD_SECRET_ACCESS_KEY=${AWS_EC2_SD_SECRET_ACCESS_KEY:-}
+      - AWS_EC2_SD_REGION=${AWS_EC2_SD_REGION:-us-east-1}
     deploy:
       resources:
         limits:
@@ -97,7 +99,7 @@ services:
   # GRAFANA
   # ===================================================
   grafana:
-    image: grafana/grafana:11.4.0
+    image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
     labels:
@@ -139,7 +141,7 @@ services:
   # LOKI
   # ===================================================
   loki:
-    image: grafana/loki:3.4.2
+    image: grafana/loki:latest
     container_name: loki
     restart: unless-stopped
     labels:
@@ -174,7 +176,7 @@ services:
   # ALERTMANAGER
   # ===================================================
   alertmanager:
-    image: prom/alertmanager:v0.31.1
+    image: prom/alertmanager:latest
     container_name: alertmanager
     restart: unless-stopped
     labels:

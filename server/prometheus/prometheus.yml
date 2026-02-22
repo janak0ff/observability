@@ -1,16 +1,18 @@
 # ============================================================
-# Global scrape settings — all values read from .env via
-# --config.expand-env=true (set in docker-compose.yml)
+# Global scrape settings
+# Note: duration fields (scrape_interval etc.) cannot use ${VAR} syntax.
+# String fields in external_labels DO support ${VAR} expansion.
 # ============================================================
 global:
-  scrape_interval: ${SCRAPE_INTERVAL:-15s}
-  scrape_timeout: ${SCRAPE_TIMEOUT:-10s}
-  evaluation_interval: ${SCRAPE_INTERVAL:-15s}
+  scrape_interval: 15s      # how often to scrape targets
+  scrape_timeout: 10s       # how long before a scrape times out
+  evaluation_interval: 15s  # how often to evaluate alert rules
   external_labels:
     # Identifies which Prometheus instance sent an alert/metric
     monitor:     'observability-stack'
-    # Reflects the ENVIRONMENT value set in your .env file
-    environment: '${ENVIRONMENT:-development}'
+    # Reads ENVIRONMENT from docker-compose environment block
+    # Note: Prometheus only supports ${VAR} bare syntax, not ${VAR:-default}
+    environment: '${ENVIRONMENT}'
     host:        'server'
 
 alerting:
@@ -136,112 +138,95 @@ scrape_configs:
 
 
   # ===========================================================
-  # 3. AWS EC2 SERVICE DISCOVERY
-  #    Automatically discovers EC2 instances in your AWS account.
+  # 3. AWS EC2 SERVICE DISCOVERY (disabled by default)
+  #    Uncomment these jobs ONLY if you have AWS EC2 SD credentials
+  #    set in .env: AWS_EC2_SD_ACCESS_KEY_ID, AWS_EC2_SD_SECRET_ACCESS_KEY,
+  #    AWS_EC2_SD_REGION
   #
-  #    To opt an instance IN to scraping, add these EC2 tags:
+  #    To opt an EC2 instance IN to scraping, add these tags:
   #      Scrape      = true
-  #      ScrapePort  = 9100       (optional, defaults to job port)
-  #      Job         = node_exporter (optional, for grouping)
-  #      Environment = production (optional label)
-  #      Name        = web-01     (used as instance label)
-  #
-  #    Required IAM permission: ec2:DescribeInstances
-  #    Set credentials in .env:
-  #      AWS_EC2_SD_ACCESS_KEY_ID / AWS_EC2_SD_SECRET_ACCESS_KEY
-  #    OR attach an IAM instance role to the Prometheus server.
+  #      ScrapePort  = 9100
+  #      Job         = node_exporter
+  #      Environment = production
+  #      Name        = web-01
   # ===========================================================
-  - job_name: 'ec2-sd-node-exporter'
-    ec2_sd_configs:
-        # AWS region — set AWS_EC2_SD_REGION in .env, default us-east-1
-      - region: ${AWS_EC2_SD_REGION:-us-east-1}
-        access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
-        secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
-        port: 9100
-        refresh_interval: 60s
-        filters:
-          - name: tag:Scrape
-            values: ['true']
-          - name: instance-state-name
-            values: ['running']
+  # - job_name: 'ec2-sd-node-exporter'
+  #   ec2_sd_configs:
+  #     - region: ${AWS_EC2_SD_REGION}
+  #       access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
+  #       secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
+  #       port: 9100
+  #       refresh_interval: 60s
+  #       filters:
+  #         - name: tag:Scrape
+  #           values: ['true']
+  #         - name: instance-state-name
+  #           values: ['running']
+  #   relabel_configs:
+  #     - source_labels: [__meta_ec2_private_ip, __meta_ec2_tag_ScrapePort]
+  #       regex: '(.+);(\d+)'
+  #       replacement: '$1:$2'
+  #       target_label: __address__
+  #     - source_labels: [__meta_ec2_private_ip]
+  #       regex: '(.+)'
+  #       replacement: '$1:9100'
+  #       target_label: __address__
+  #     - source_labels: [__meta_ec2_tag_Name]
+  #       regex: '(.+)'
+  #       target_label: instance
+  #     - source_labels: [__meta_ec2_private_ip]
+  #       target_label: instance
+  #     - source_labels: [__meta_ec2_region]
+  #       target_label: region
+  #     - source_labels: [__meta_ec2_availability_zone]
+  #       target_label: availability_zone
+  #     - source_labels: [__meta_ec2_instance_type]
+  #       target_label: instance_type
+  #     - source_labels: [__meta_ec2_instance_id]
+  #       target_label: ec2_instance_id
+  #     - source_labels: [__meta_ec2_tag_Job]
+  #       regex: '(.+)'
+  #       target_label: job
+  #     - target_label: job
+  #       replacement: 'node_exporter'
+  #     - source_labels: [__meta_ec2_tag_Environment]
+  #       regex: '(.+)'
+  #       target_label: environment
 
-    relabel_configs:
-      # Build scrape address: use ScrapePort tag if present, else default 9100
-      - source_labels: [__meta_ec2_private_ip, __meta_ec2_tag_ScrapePort]
-        regex: '(.+);(\d+)'
-        replacement: '$1:$2'
-        target_label: __address__
-      - source_labels: [__meta_ec2_private_ip]
-        regex: '(.+)'
-        replacement: '$1:9100'
-        target_label: __address__
-
-      # instance = Name tag if set, otherwise private IP
-      - source_labels: [__meta_ec2_tag_Name]
-        regex: '(.+)'
-        target_label: instance
-      - source_labels: [__meta_ec2_private_ip]
-        target_label: instance
-
-      # Useful EC2 metadata as labels
-      - source_labels: [__meta_ec2_region]
-        target_label: region
-      - source_labels: [__meta_ec2_availability_zone]
-        target_label: availability_zone
-      - source_labels: [__meta_ec2_instance_type]
-        target_label: instance_type
-      - source_labels: [__meta_ec2_instance_id]
-        target_label: ec2_instance_id
-
-      # Job: prefer EC2 Job tag, else default
-      - source_labels: [__meta_ec2_tag_Job]
-        regex: '(.+)'
-        target_label: job
-      - target_label: job
-        replacement: 'node_exporter'
-
-      # Environment: prefer EC2 Environment tag
-      - source_labels: [__meta_ec2_tag_Environment]
-        regex: '(.+)'
-        target_label: environment
-
-  # EC2 SD for Alloy (log shipper) — tag: Job=alloy AND Scrape=true
-  - job_name: 'ec2-sd-alloy'
-    ec2_sd_configs:
-        # Same region as above — controlled by AWS_EC2_SD_REGION in .env
-      - region: ${AWS_EC2_SD_REGION:-us-east-1}
-        access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
-        secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
-        port: 12345
-        refresh_interval: 60s
-        filters:
-          - name: tag:Scrape
-            values: ['true']
-          - name: tag:Job
-            values: ['alloy']
-          - name: instance-state-name
-            values: ['running']
-
-    relabel_configs:
-      - source_labels: [__meta_ec2_private_ip]
-        regex: '(.*)'
-        replacement: '$1:12345'
-        target_label: __address__
-      - source_labels: [__meta_ec2_tag_Name]
-        regex: '(.+)'
-        target_label: instance
-      - source_labels: [__meta_ec2_private_ip]
-        target_label: instance
-      - source_labels: [__meta_ec2_region]
-        target_label: region
-      - source_labels: [__meta_ec2_availability_zone]
-        target_label: availability_zone
-      - source_labels: [__meta_ec2_instance_type]
-        target_label: instance_type
-      - source_labels: [__meta_ec2_instance_id]
-        target_label: ec2_instance_id
-      - target_label: job
-        replacement: 'alloy'
-      - source_labels: [__meta_ec2_tag_Environment]
-        regex: '(.+)'
-        target_label: environment
+  # - job_name: 'ec2-sd-alloy'
+  #   ec2_sd_configs:
+  #     - region: ${AWS_EC2_SD_REGION}
+  #       access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
+  #       secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
+  #       port: 12345
+  #       refresh_interval: 60s
+  #       filters:
+  #         - name: tag:Scrape
+  #           values: ['true']
+  #         - name: tag:Job
+  #           values: ['alloy']
+  #         - name: instance-state-name
+  #           values: ['running']
+  #   relabel_configs:
+  #     - source_labels: [__meta_ec2_private_ip]
+  #       regex: '(.*)'
+  #       replacement: '$1:12345'
+  #       target_label: __address__
+  #     - source_labels: [__meta_ec2_tag_Name]
+  #       regex: '(.+)'
+  #       target_label: instance
+  #     - source_labels: [__meta_ec2_private_ip]
+  #       target_label: instance
+  #     - source_labels: [__meta_ec2_region]
+  #       target_label: region
+  #     - source_labels: [__meta_ec2_availability_zone]
+  #       target_label: availability_zone
+  #     - source_labels: [__meta_ec2_instance_type]
+  #       target_label: instance_type
+  #     - source_labels: [__meta_ec2_instance_id]
+  #       target_label: ec2_instance_id
+  #     - target_label: job
+  #       replacement: 'alloy'
+  #     - source_labels: [__meta_ec2_tag_Environment]
+  #       regex: '(.+)'
+  #       target_label: environment

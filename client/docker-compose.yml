@@ -12,7 +12,7 @@ services:
   # Prometheus scrapes this from the server via File SD
   # ============================================================
   node-exporter:
-    image: prom/node-exporter:v1.9.0   # pin version for reproducibility
+    image: prom/node-exporter:latest
     container_name: node-exporter
     restart: unless-stopped
     volumes:
@@ -38,7 +38,7 @@ services:
   # Expose port ${ALLOY_PORT} for Prometheus to scrape Alloy's own metrics
   # ============================================================
   alloy:
-    image: grafana/alloy:v1.7.4   # pin version for reproducibility
+    image: grafana/alloy:latest
     container_name: alloy
     restart: unless-stopped
     user: root                    # required to read /var/log and Docker socket
@@ -66,7 +66,7 @@ services:
   # Config: configs/process-exporter/process.yml
   # ============================================================
   process-exporter:
-    image: ncabatoff/process-exporter:0.8.5   # pin version for reproducibility
+    image: ncabatoff/process-exporter:latest
     container_name: process-exporter
     restart: unless-stopped
     volumes:
