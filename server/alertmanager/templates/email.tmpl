@@ -142,14 +142,33 @@
         </tbody>
       </table>
       
-      <div style="text-align: left; margin-top: 15px;">
-        <a href="{{ .GeneratorURL }}" style="background-color: #4a5568; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px; margin-right: 10px;">View in Prometheus</a>
+      <div style="text-align: left; margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+        {{/* Prometheus: direct link to the exact query that fired */}}
+        <a href="{{ .GeneratorURL }}"
+           style="background-color: #e6522c; color: white; padding: 7px 14px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px;">
+          Query in Prometheus
+        </a>
+
+        {{/* Grafana Node Dashboard filtered to this instance */}}
+        {{ if .Labels.instance }}
+        <a href="${GRAFANA_EXTERNAL_URL:-http://localhost:3000}/d/rYdddlPWk/node-exporter-full?var-instance={{ .Labels.instance }}"
+           style="background-color: #3182ce; color: white; padding: 7px 14px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px;">
+          Node Dashboard
+        </a>
+        {{ end }}
       </div>
     </div>
     {{ end }}
     
-    <div style="text-align: center; margin-top: 25px;">
-      <a href="${GRAFANA_EXTERNAL_URL:-http://localhost:3000}" style="background-color: #3182ce; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Open Grafana</a>
+    <div style="text-align: center; margin-top: 25px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+      <a href="${PROMETHEUS_EXTERNAL_URL:-http://localhost:9090}/alerts"
+         style="background-color: #718096; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px; margin-right: 8px;">
+        All Active Alerts
+      </a>
+      <a href="${GRAFANA_EXTERNAL_URL:-http://localhost:3000}"
+         style="background-color: #3182ce; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px;">
+        Open Grafana
+      </a>
     </div>
   </div>
 

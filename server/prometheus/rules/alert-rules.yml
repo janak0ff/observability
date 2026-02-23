@@ -6,7 +6,7 @@ groups:
     interval: 30s
     rules:
       - alert: InstanceDown
-        expr: up == 0
+        expr: up{job!="docker"} == 0
         for: 5m
         labels:
           severity: critical

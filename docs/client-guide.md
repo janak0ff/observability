@@ -114,3 +114,19 @@ curl http://127.0.0.1:9323/metrics | head -n 5
 ```
 
 > **Note**: We bind to `127.0.0.1` intentionally. The Grafana Alloy container runs in host-network mode and scrapes this endpoint locally. Do not bind it to `0.0.0.0` or expose port 9323 to the internet.
+
+---
+
+## Testing Alerts (Manual Load Generation)
+
+If you want to intentionally trigger the **HighCPUUsage** and **HighMemoryUsage** alerts to verify your Alertmanager email routing, you can use `stress-ng` to temporarily peg the server's resources.
+
+```bash
+# 1. Install the stress-ng utility
+sudo apt-get update && sudo apt-get install -y stress-ng
+
+# 2. Run a 10-minute stress test (75% CPU load across all cores, 75% RAM usage)
+stress-ng --cpu $(nproc) --cpu-load 75 --vm 1 --vm-bytes 75% --timeout 10m
+```
+
+> **Note**: The Prometheus alerts are configured with a `for: 5m` duration. You must let this command run for at least 5 minutes before the alerts automatically transition from *Pending* to *Firing* and send you an email. You can press `Ctrl+C` at any time to abort the test early and resolve the alerts.
