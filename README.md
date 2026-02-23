@@ -30,14 +30,15 @@ jq '.[].labels.host' prometheus/targets/clients.json
 
 Essential Grafana Dashboards:
 - Full Node Exporter : 1860
-- Full Process Exporter : 1861
 - Full Alloy Exporter : 1862
-- NGINX exporter : 12708
+- NGINX exporter : 12708 
 - Jenkins exporter : 12709
 Nginx Dashboard → ID: 12708
 
 Jenkins Dashboard → ID: 9964
 
+
+SSH Logs 17514, 21750
 
 
 

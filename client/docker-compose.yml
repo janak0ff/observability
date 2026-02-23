@@ -120,7 +120,10 @@ services:
     container_name: nginx-exporter
     restart: unless-stopped
     command:
-      - '-nginx.scrape-uri=${NGINX_STATUS_URL:-http://nginx:80/nginx_status}'
+      - '-nginx.scrape-uri=${NGINX_STATUS_URL:-http://host.docker.internal:80/nginx_status}'
+    extra_hosts:
+      # Allows the container to reach Nginx running directly on the host OS
+      - "host.docker.internal:host-gateway"
     ports:
       - "${NGINX_EXPORTER_PORT:-9113}:9113"
     networks:
