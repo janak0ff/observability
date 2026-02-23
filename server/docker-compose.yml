@@ -182,6 +182,14 @@ services:
             -e "s|\$${REPEAT_INTERVAL}|$${REPEAT_INTERVAL}|g" \
             /etc/alertmanager/alertmanager.yml.tmpl > /etc/alertmanager/alertmanager.yml
         
+        # Copy templates to a writable directory so we can substitute variables
+        mkdir -p /tmp/templates
+        cp /etc/alertmanager/templates/*.tmpl /tmp/templates/
+        sed -i "s|\$${GRAFANA_EXTERNAL_URL}|$${GRAFANA_EXTERNAL_URL}|g" /tmp/templates/email.tmpl
+        
+        # Point the config to the rendered templates
+        sed -i "s|/etc/alertmanager/templates/\*.tmpl|/tmp/templates/*.tmpl|g" /etc/alertmanager/alertmanager.yml
+        
         exec /bin/alertmanager \
           --config.file=/etc/alertmanager/alertmanager.yml \
           --storage.path=/alertmanager \
@@ -195,6 +203,7 @@ services:
       - SMTP_AUTH_PASSWORD=${SMTP_AUTH_PASSWORD}
       - DEFAULT_ALERT_EMAIL=${DEFAULT_ALERT_EMAIL}
       - REPEAT_INTERVAL=${ALERT_REPEAT_INTERVAL:-4h}
+      - GRAFANA_EXTERNAL_URL=${GRAFANA_EXTERNAL_URL:-http://localhost:3000}
     deploy:
       resources:
         limits:
