@@ -97,9 +97,15 @@ scrape_configs:
         target_label: job
         replacement: 'nginx'
       - source_labels: [__address__]
-        regex: '.+:9506'
+        regex: '.+:8080'
         target_label: job
         replacement: 'jenkins'
+
+      # Jenkins Prometheus Plugin exposes metrics at /prometheus, not /metrics
+      - source_labels: [__address__]
+        regex: '.+:8080'
+        target_label: __metrics_path__
+        replacement: '/prometheus'
 
       # Strip port from instance label so Grafana shows just the IP
       - source_labels: [__address__]

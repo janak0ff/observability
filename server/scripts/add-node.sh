@@ -56,12 +56,12 @@ jq --arg ip    "$IP"   \
    --arg env   "$ENV"  \
 '. += [
   {
-    "targets": [($ip + ":9100"), ($ip + ":12345"), ($ip + ":9256"), ($ip + ":9338"), ($ip + ":9113"), ($ip + ":9506")],
+    "targets": [($ip + ":9100"), ($ip + ":12345"), ($ip + ":9256"), ($ip + ":9338"), ($ip + ":9113"), ($ip + ":8080")],
     "labels":  {"host": $host, "environment": $env}
   }
 ]' "$TARGETS_FILE" > /tmp/clients.tmp && mv /tmp/clients.tmp "$TARGETS_FILE"
 
-echo "✅ Added ${HOST} (${IP}) — ports 9100, 12345, 9256, 9338, 9113, 9506"
+echo "✅ Added ${HOST} (${IP}) — ports 9100, 12345, 9256, 9338, 9113, 8080"
 
 # ── Hot-reload Prometheus ────────────────────────────────────
 echo "🔄 Hot-reloading Prometheus (no restart needed)..."
