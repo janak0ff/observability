@@ -165,6 +165,29 @@ services:
       prometheus.io/path: "/metrics"
     ports:
       - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      # Mount config read-only as a template
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tmpl:ro
+      - ./alertmanager/templates:/etc/alertmanager/templates:ro
+      - alertmanager_data:/alertmanager
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        # Render the config template with environment variables using sed
+        sed -e "s|\$${SMTP_FROM}|$${SMTP_FROM}|g" \
+            -e "s|\$${SMTP_AUTH_USERNAME}|$${SMTP_AUTH_USERNAME}|g" \
+            -e "s|\$${SMTP_AUTH_PASSWORD}|$${SMTP_AUTH_PASSWORD}|g" \
+            -e "s|\$${DEFAULT_ALERT_EMAIL}|$${DEFAULT_ALERT_EMAIL}|g" \
+            -e "s|\$${REPEAT_INTERVAL}|$${REPEAT_INTERVAL}|g" \
+            /etc/alertmanager/alertmanager.yml.tmpl > /etc/alertmanager/alertmanager.yml
+        
+        # Start Alertmanager with the rendered config
+        exec /bin/alertmanager \
+          --config.file=/etc/alertmanager/alertmanager.yml \
+          --storage.path=/alertmanager \
+          --web.external-url=$${ALERTMANAGER_EXTERNAL_URL:-http://localhost:9093} \
+          --log.level=$${ALERTMANAGER_LOG_LEVEL:-warn}
     networks:
       - observability
     environment:
@@ -172,6 +195,7 @@ services:
       - SMTP_AUTH_USERNAME=${SMTP_AUTH_USERNAME}
       - SMTP_AUTH_PASSWORD=${SMTP_AUTH_PASSWORD}
       - DEFAULT_ALERT_EMAIL=${DEFAULT_ALERT_EMAIL}
+      - REPEAT_INTERVAL=${ALERT_REPEAT_INTERVAL:-4h}
     deploy:
       resources:
         limits:

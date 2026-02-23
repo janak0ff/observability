@@ -1,15 +1,4 @@
 [
-    // {
-    //     "targets": [
-    //         "host.docker.internal:9100",
-    //         "host.docker.internal:12345",
-    //         "host.docker.internal:9256"
-    //     ],
-    //     "labels": {
-    //         "host": "server",
-    //         "environment": "production"
-    //     }
-    // },
     {
         "targets": [
             "202.51.74.35:9100",

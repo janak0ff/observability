@@ -10,11 +10,16 @@ global:
 templates:
   - '/etc/alertmanager/templates/*.tmpl'
 
+# ============================================================
+# Routing Rules
+# ============================================================
 route:
+  # Group alerts together by these labels so you don't get spammed with 100 emails at once
   group_by: ['alertname', 'severity']
   group_wait: 30s
   group_interval: 5m
-  repeat_interval: 4h
+  # How long to wait before sending a reminder email if the alert is STILL firing
+  repeat_interval: '${REPEAT_INTERVAL}'
   receiver: 'email-alerts'
 
   routes:
@@ -22,13 +27,14 @@ route:
         severity: critical
       receiver: 'email-alerts'
       group_wait: 10s
+      # Critical alerts get repeated reminders much faster (1 hour)
       repeat_interval: 1h
 
     - match:
         severity: warning
       receiver: 'email-alerts'
       group_wait: 1m
-      repeat_interval: 4h
+      repeat_interval: '${REPEAT_INTERVAL}'
 
 receivers:
   - name: 'email-alerts'

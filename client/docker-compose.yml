@@ -135,9 +135,9 @@ services:
     environment:
       # URL of your Jenkins instance (no trailing slash)
       - JENKINS_EXPORTER_WEB_ADDRESS=0.0.0.0:9506
-      - JENKINS_EXPORTER_JENKINS_ADDRESS=${JENKINS_URL:-http://localhost:8080}
-      - JENKINS_EXPORTER_JENKINS_USERNAME=${JENKINS_USER}
-      - JENKINS_EXPORTER_JENKINS_PASSWORD=${JENKINS_PASSWORD}
+      - JENKINS_EXPORTER_URL=${JENKINS_URL:-http://localhost:8080}
+      - JENKINS_EXPORTER_USERNAME=${JENKINS_USER}
+      - JENKINS_EXPORTER_PASSWORD=${JENKINS_PASSWORD}
     extra_hosts:
       # Allow the container to reach Jenkins on the host machine
       - "host.docker.internal:host-gateway"
