@@ -14,6 +14,7 @@ services:
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
+    hostname: ${NODE_HOSTNAME:-client}
     restart: unless-stopped
     volumes:
       - /proc:/host/proc:ro
@@ -68,6 +69,7 @@ services:
   process-exporter:
     image: ncabatoff/process-exporter:latest
     container_name: process-exporter
+    hostname: ${NODE_HOSTNAME:-client}
     restart: unless-stopped
     volumes:
       - ./configs/process-exporter/process.yml:/config/process.yml
@@ -88,6 +90,7 @@ services:
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
+    hostname: ${NODE_HOSTNAME:-client}
     restart: unless-stopped
     privileged: true
     command:
