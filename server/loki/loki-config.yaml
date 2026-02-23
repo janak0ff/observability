@@ -47,6 +47,8 @@ storage_config:
     bucketnames: ${LOKI_BUCKET_NAME:-loki-logs}
     access_key_id: ${AWS_ACCESS_KEY_ID:-}
     secret_access_key: ${AWS_SECRET_ACCESS_KEY:-}
+    # Required for AWS Academy / temporary STS credentials
+    session_token: ${AWS_SESSION_TOKEN:-}
     s3forcepathstyle: false
     insecure: false
     http_config:

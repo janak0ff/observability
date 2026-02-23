@@ -130,3 +130,80 @@ stress-ng --cpu $(nproc) --cpu-load 75 --vm 1 --vm-bytes 75% --timeout 10m
 ```
 
 > **Note**: The Prometheus alerts are configured with a `for: 5m` duration. You must let this command run for at least 5 minutes before the alerts automatically transition from *Pending* to *Firing* and send you an email. You can press `Ctrl+C` at any time to abort the test early and resolve the alerts.
+
+
+
+The stress-ng test failed with **SIGILL (Illegal Instruction)** errors. This typically happens when stress-ng tries to use CPU instructions that aren't supported by your processor. Let's fix this and get your RAM test working properly.
+
+## **Quick Fix - Test RAM Only (Recommended)**
+
+Since you only want to test RAM usage above 80%, let's run just the memory test without the CPU stressors that are causing the errors:
+
+```bash
+stress-ng --vm 1 --vm-bytes 80% --timeout 10m
+```
+
+Or if you want to be more precise about exceeding 80%:
+
+```bash
+stress-ng --vm 1 --vm-bytes 85% --timeout 10m
+```
+
+## **Alternative Approaches That Will Work**
+
+### **Option 1: Use the original `stress` tool**
+```bash
+sudo apt-get install -y stress
+stress --vm 2 --vm-bytes 4G --vm-keep --timeout 600s
+```
+(Adjust the `--vm-bytes` value based on your total RAM)
+
+### **Option 2: Fix the stress-ng CPU issue**
+
+The SIGILL errors are happening because stress-ng is trying to use CPU-specific optimizations. Try these alternatives:
+
+**Disable CPU-specific optimizations:**
+```bash
+stress-ng --cpu 0 --vm 1 --vm-bytes 85% --timeout 10m
+```
+(This runs 0 CPU stressors, just the VM stressor)
+
+**Or specify a compatible CPU method:**
+```bash
+stress-ng --cpu $(nproc) --cpu-method bitops --vm 1 --vm-bytes 85% --timeout 10m
+```
+
+**Or run the RAM test in a simpler mode:**
+```bash
+stress-ng --vm 1 --vm-bytes 85% --vm-method all --timeout 10m
+```
+
+## **Monitor Your RAM Usage**
+
+In another terminal, run:
+```bash
+watch -n 1 free -h
+```
+or
+```bash
+htop
+```
+
+## **Check Your System's RAM First**
+
+Before running the test, check your total RAM:
+```bash
+free -h
+```
+
+Then calculate 80% and use an appropriate value. For example, if you have 16GB total:
+```bash
+stress-ng --vm 1 --vm-bytes 13G --timeout 10m
+```
+
+**The simplest working command for you right now is:**
+```bash
+stress-ng --vm 1 --vm-bytes 85% --timeout 10m
+```
+
+This will use approximately 85% of your available RAM for 10 minutes without triggering the CPU issues.

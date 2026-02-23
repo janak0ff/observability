@@ -12,5 +12,17 @@
             "host": "ubuntu35",
             "environment": "production"
         }
+    },
+    {
+        "targets": [
+            "54.152.52.171:9100",
+            "54.152.52.171:12345",
+            "54.152.52.171:9256",
+            "54.152.52.171:9338"
+        ],
+        "labels": {
+            "host": "aws-node-01",
+            "environment": "production"
+        }
     }
 ]

@@ -1,74 +1,3 @@
-Access Points:
-
-Grafana: http://localhost:3000 (admin / your-password)
-Prometheus: http://localhost:9090
-Loki: http://localhost:3100
-Alertmanager: http://localhost:9093
-Alloy UI: http://localhost:12345
-Logs from client35	http://54.152.52.171:3000
-Loki health check	http://54.152.52.171:3100/ready
-Loki's own metrics	http://54.152.52.171:3100/metrics
-Prometheus targets	http://54.152.52.171:9090/targets
-Alloy metrics (on client)	http://202.51.74.35:12345/metrics
-Node exporter (on client)	http://202.51.74.35:9100/metrics
-
-Start both nginx and jenkins exporters
-docker compose --profile nginx --profile jenkins up -d
-
-Adding a new node just one command:
-
-```bash
-./scripts/add-node.sh 34.230.91.8 client1
-```
-
-And listing all nodes:
-
-```bash
-jq '.[].labels.host' prometheus/targets/clients.json
-```
-
-
-Essential Grafana Dashboards:
-- Full Node Exporter : 1860
-
-- Full Alloy Exporter : 1862
-- NGINX exporter : 12708 
-- Jenkins exporter : 12709
-Nginx Dashboard → ID: 12708
-
-Jenkins Dashboard → ID: 9964
-
-SSH Logs : 17514, 21750
-Docker Container : 11600
-
-
-
-
-
-
-
-
-
-# Observability Stack - Client-Server Monitoring Solution
-
-## Overview
-This is a complete, production-ready monitoring solution with client-server architecture. It includes Prometheus, Grafana, Loki, and Alertmanager on the server side, and various exporters on the client side.
-
-## Architecture
-
-### Server Components
-- **Prometheus**: Metrics collection and storage
-- **Grafana**: Visualization and dashboards
-- **Loki**: Log aggregation
-- **Alertmanager**: Alert handling and notification
-
-### Client Components
-- **Node Exporter**: System metrics (CPU, memory, disk, network)
-- **Alloy**: Log collection and forwarding
-- **Process Exporter**: Process-level monitoring
-- **Additional Exporters**: Nginx, Jenkins, PostgreSQL, MySQL, Redis (enabled via profiles)
-
-
 
 # AWS Setup Guide
 
@@ -92,14 +21,15 @@ Before creating any resources, make sure your IAM user/role has the correct perm
 | Loki S3 storage | `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, `s3:ListBucket` |
 | EC2 Service Discovery | `ec2:DescribeInstances` |
 
-### Option A — Create and attach an inline policy (standard AWS)
+### Option A — Create and attach an inline policy (standard AWS accounts only)
+
+> ⚠️ **This does NOT work with AWS Academy / assumed roles.**  
+> If `aws sts get-caller-identity` shows `assumed-role` in the Arn, skip to Option B.
 
 ```bash
-# 1. Get your IAM username
+# Only works if you are authenticated as a real IAM user (not an assumed role)
 IAM_USER=$(aws iam get-user --query 'User.UserName' --output text)
-echo "IAM User: $IAM_USER"
 
-# 2. Create the policy document
 cat > /tmp/observability-policy.json << 'EOF'
 {
   "Version": "2012-10-17",
@@ -107,13 +37,7 @@ cat > /tmp/observability-policy.json << 'EOF'
     {
       "Sid": "LokiS3Access",
       "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:DeleteObject",
-        "s3:ListBucket",
-        "s3:GetBucketLocation"
-      ],
+      "Action": ["s3:PutObject","s3:GetObject","s3:DeleteObject","s3:ListBucket","s3:GetBucketLocation"],
       "Resource": [
         "arn:aws:s3:::my-loki-logs-prod-janak0ff",
         "arn:aws:s3:::my-loki-logs-prod-janak0ff/*"
@@ -122,18 +46,13 @@ cat > /tmp/observability-policy.json << 'EOF'
     {
       "Sid": "EC2ServiceDiscovery",
       "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeAvailabilityZones",
-        "ec2:DescribeTags"
-      ],
+      "Action": ["ec2:DescribeInstances","ec2:DescribeAvailabilityZones","ec2:DescribeTags"],
       "Resource": "*"
     }
   ]
 }
 EOF
 
-# 3. Attach the inline policy to your user
 aws iam put-user-policy \
   --user-name "$IAM_USER" \
   --policy-name "ObservabilityStackPolicy" \
@@ -142,36 +61,25 @@ aws iam put-user-policy \
 echo "✅ Policy attached to $IAM_USER"
 ```
 
-Verify it was attached:
+Verify:
 ```bash
 aws iam list-user-policies --user-name "$IAM_USER"
 ```
 
-### Option B — Attach existing AWS managed policies (AWS Academy / Vocareum)
+### Option B — AWS Academy / Vocareum (assumed role)
 
-> **AWS Academy note**: You cannot create IAM users or attach custom policies. Instead, attach pre-existing AWS managed policies to the `voclabs` role, or just proceed — the Lab role already has broad S3 and EC2 permissions by default.
+> ✅ **You are here** — your session is an assumed role (`voclabs`), confirmed by `assumed-role` in the Arn.  
+> The `voclabs` Lab role already has **full S3 and EC2 permissions** pre-attached.  
+> **No policy attachment needed — skip directly to the verify step below.**
 
-Check what policies are already on your role:
+If you ever need to attach managed policies to a regular IAM **role** (not Academy):
 ```bash
-# Get the role name from your current session
-ROLE_NAME=$(aws sts get-caller-identity --query 'Arn' --output text | cut -d'/' -f2)
-echo "Role: $ROLE_NAME"
+ROLE_NAME="your-role-name"
 
-# List attached policies
-aws iam list-attached-role-policies --role-name "$ROLE_NAME" 2>/dev/null || \
-  echo "ℹ️  Cannot list role policies (normal for Academy — permissions are pre-configured)"
-```
-
-If you need to attach managed policies to a regular IAM role:
-```bash
-ROLE_NAME="your-role-name"  # replace with actual role name
-
-# Attach S3 full access (or use a narrower policy)
 aws iam attach-role-policy \
   --role-name "$ROLE_NAME" \
   --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
 
-# Attach EC2 read-only for service discovery
 aws iam attach-role-policy \
   --role-name "$ROLE_NAME" \
   --policy-arn arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess

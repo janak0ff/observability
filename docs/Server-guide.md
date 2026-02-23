@@ -222,7 +222,15 @@ curl -X POST http://localhost:9090/-/reload
 Adding a new node just one command:
 
 ```bash
-./scripts/add-node.sh 34.230.91.8 client1
+# Basic node (no nginx/jenkins)
+./scripts/add-node.sh 10.0.1.50 web-01 production
+
+# Node running nginx
+./scripts/add-node.sh 10.0.1.50 web-01 production --nginx
+
+# Node running nginx + jenkins
+./scripts/add-node.sh 54.152.52.171 aws-node-01 production --nginx --jenkins
+
 ```
 
 And listing all nodes:
