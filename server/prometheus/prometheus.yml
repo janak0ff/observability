@@ -136,83 +136,75 @@ scrape_configs:
   #      Environment = production
   #      Name        = web-01
   # ===========================================================
-  # - job_name: 'ec2-sd-node-exporter'
-  #   ec2_sd_configs:
-  #     - region: ${AWS_EC2_SD_REGION}
-  #       access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
-  #       secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
-  #       port: 9100
-  #       refresh_interval: 60s
-  #       filters:
-  #         - name: tag:Scrape
-  #           values: ['true']
-  #         - name: instance-state-name
-  #           values: ['running']
-  #   relabel_configs:
-  #     - source_labels: [__meta_ec2_private_ip, __meta_ec2_tag_ScrapePort]
-  #       regex: '(.+);(\d+)'
-  #       replacement: '$1:$2'
-  #       target_label: __address__
-  #     - source_labels: [__meta_ec2_private_ip]
-  #       regex: '(.+)'
-  #       replacement: '$1:9100'
-  #       target_label: __address__
-  #     - source_labels: [__meta_ec2_tag_Name]
-  #       regex: '(.+)'
-  #       target_label: instance
-  #     - source_labels: [__meta_ec2_private_ip]
-  #       target_label: instance
-  #     - source_labels: [__meta_ec2_region]
-  #       target_label: region
-  #     - source_labels: [__meta_ec2_availability_zone]
-  #       target_label: availability_zone
-  #     - source_labels: [__meta_ec2_instance_type]
-  #       target_label: instance_type
-  #     - source_labels: [__meta_ec2_instance_id]
-  #       target_label: ec2_instance_id
-  #     - source_labels: [__meta_ec2_tag_Job]
-  #       regex: '(.+)'
-  #       target_label: job
-  #     - target_label: job
-  #       replacement: 'node_exporter'
-  #     - source_labels: [__meta_ec2_tag_Environment]
-  #       regex: '(.+)'
-  #       target_label: environment
+  - job_name: 'ec2-sd-node-exporter'
+    ec2_sd_configs:
+      - region: us-east-1
+        port: 9100
+        refresh_interval: 60s
+        filters:
+          - name: tag:Scrape
+            values: ['true']
+          - name: instance-state-name
+            values: ['running']
+    relabel_configs:
+      # Use public IP — Monitor server is outside the VPC
+      - source_labels: [__meta_ec2_public_ip]
+        regex: '(.+)'
+        replacement: '$1:9100'
+        target_label: __address__
+      # Use the Name tag as the instance label (friendly name in Grafana)
+      - source_labels: [__meta_ec2_tag_Name]
+        regex: '(.+)'
+        target_label: instance
+      - source_labels: [__meta_ec2_region]
+        target_label: region
+      - source_labels: [__meta_ec2_availability_zone]
+        target_label: availability_zone
+      - source_labels: [__meta_ec2_instance_type]
+        target_label: instance_type
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: ec2_instance_id
+      - source_labels: [__meta_ec2_tag_Job]
+        regex: '(.+)'
+        target_label: job
+      - target_label: job
+        replacement: 'node_exporter'
+      - source_labels: [__meta_ec2_tag_Environment]
+        regex: '(.+)'
+        target_label: environment
 
-  # - job_name: 'ec2-sd-alloy'
-  #   ec2_sd_configs:
-  #     - region: ${AWS_EC2_SD_REGION}
-  #       access_key: ${AWS_EC2_SD_ACCESS_KEY_ID}
-  #       secret_key: ${AWS_EC2_SD_SECRET_ACCESS_KEY}
-  #       port: 12345
-  #       refresh_interval: 60s
-  #       filters:
-  #         - name: tag:Scrape
-  #           values: ['true']
-  #         - name: tag:Job
-  #           values: ['alloy']
-  #         - name: instance-state-name
-  #           values: ['running']
-  #   relabel_configs:
-  #     - source_labels: [__meta_ec2_private_ip]
-  #       regex: '(.*)'
-  #       replacement: '$1:12345'
-  #       target_label: __address__
-  #     - source_labels: [__meta_ec2_tag_Name]
-  #       regex: '(.+)'
-  #       target_label: instance
-  #     - source_labels: [__meta_ec2_private_ip]
-  #       target_label: instance
-  #     - source_labels: [__meta_ec2_region]
-  #       target_label: region
-  #     - source_labels: [__meta_ec2_availability_zone]
-  #       target_label: availability_zone
-  #     - source_labels: [__meta_ec2_instance_type]
-  #       target_label: instance_type
-  #     - source_labels: [__meta_ec2_instance_id]
-  #       target_label: ec2_instance_id
-  #     - target_label: job
-  #       replacement: 'alloy'
-  #     - source_labels: [__meta_ec2_tag_Environment]
-  #       regex: '(.+)'
-  #       target_label: environment
+  - job_name: 'ec2-sd-alloy'
+    ec2_sd_configs:
+      - region: us-east-1
+        port: 12345
+        refresh_interval: 60s
+        filters:
+          - name: tag:Scrape
+            values: ['true']
+          - name: tag:Job
+            values: ['alloy']
+          - name: instance-state-name
+            values: ['running']
+    relabel_configs:
+      # Use public IP — Monitor server is outside the VPC
+      - source_labels: [__meta_ec2_public_ip]
+        regex: '(.*)'
+        replacement: '$1:12345'
+        target_label: __address__
+      # Use the Name tag as the instance label (friendly name in Grafana)
+      - source_labels: [__meta_ec2_tag_Name]
+        regex: '(.+)'
+        target_label: instance
+      - source_labels: [__meta_ec2_region]
+        target_label: region
+      - source_labels: [__meta_ec2_availability_zone]
+        target_label: availability_zone
+      - source_labels: [__meta_ec2_instance_type]
+        target_label: instance_type
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: ec2_instance_id
+      - target_label: job
+        replacement: 'alloy'
+      - source_labels: [__meta_ec2_tag_Environment]
+        regex: '(.+)'
+        target_label: environment
