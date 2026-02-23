@@ -141,11 +141,15 @@
           {{ end }}
         </tbody>
       </table>
+      
+      <div style="text-align: left; margin-top: 15px;">
+        <a href="{{ .GeneratorURL }}" style="background-color: #4a5568; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 13px; margin-right: 10px;">View in Prometheus</a>
+      </div>
     </div>
     {{ end }}
     
     <div style="text-align: center; margin-top: 25px;">
-      <a href="${GRAFANA_EXTERNAL_URL:-http://localhost:3000}/explore" style="background-color: #3182ce; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">View in Grafana</a>
+      <a href="${GRAFANA_EXTERNAL_URL:-http://localhost:3000}" style="background-color: #3182ce; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Open Grafana</a>
     </div>
   </div>
 

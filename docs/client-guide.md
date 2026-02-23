@@ -92,23 +92,25 @@ loki.write "server2" {
 }
 ```
 
+## ⚠️ Important: Enable Docker Daemon Metrics
 
-The Docker daemon metrics port is still bound to 127.0.0.1. The daemon.json change hasn't been applied on the server yet.
+The client observability stack collects statistics about the Docker engine itself. By default, Docker does not expose these metrics. You **must explicitly enable them** on every client node.
 
-You still need to run these commands on your server machine:
+Run these steps on the client server:
 
-bash
-# 1. Edit daemon.json — change metrics-addr to 0.0.0.0
-sudo nano /etc/docker/daemon.json
-Change it to:
-
-json
+```bash
+# 1. Create or update the Docker daemon config
+sudo tee /etc/docker/daemon.json << 'EOF'
 {
-  "metrics-addr": "0.0.0.0:9323",
-  "experimental": true
+  "metrics-addr": "127.0.0.1:9323"
 }
-Then:
+EOF
 
-bash
-# 2. Restart Docker
+# 2. Restart the Docker service to apply
 sudo systemctl restart docker
+
+# 3. Verify it is working:
+curl http://127.0.0.1:9323/metrics | head -n 5
+```
+
+> **Note**: We bind to `127.0.0.1` intentionally. The Grafana Alloy container runs in host-network mode and scrapes this endpoint locally. Do not bind it to `0.0.0.0` or expose port 9323 to the internet.

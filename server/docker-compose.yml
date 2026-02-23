@@ -51,6 +51,7 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
       - '--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-10GB}'
+      - '--web.external-url=${PROMETHEUS_EXTERNAL_URL:-http://localhost:9090}'
       - '--web.enable-lifecycle'              # enables POST /-/reload for hot-reload
       - '--web.enable-remote-write-receiver'  # enables Alloy remote-write
     ports:

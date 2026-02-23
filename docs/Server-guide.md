@@ -185,7 +185,7 @@ sleep 380 && kill $pids && echo "Done! Check your email."
 
 for i in 1 2 3 4; do (while true; do :; done) & done; sleep 360 && kill $(jobs -p) 2>/dev/null
 
-
+for i in 1 2 ; do (while true; do :; done) & done; sleep 400 && kill $(jobs -p) 2>/dev/null
 
 
 ---
