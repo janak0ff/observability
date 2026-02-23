@@ -1,6 +1,6 @@
 # NEVER commit actual secrets to version control
-.env
-.env.local
+server/.env-cloud
+client/.env-cloud
 nginx/certs/
 data/
 volumes/
