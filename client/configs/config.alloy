@@ -25,9 +25,9 @@
 // These files always exist on Ubuntu/Debian servers
 loki.source.file "apt_logs" {
   targets = [
-    {__path__ = "/var/log/dpkg.log",       "job" = "package_manager", "app" = "dpkg", "log_type" = "packages"},
-    {__path__ = "/var/log/apt/history.log", "job" = "package_manager", "app" = "apt",  "log_type" = "packages"},
-    {__path__ = "/var/log/apt/term.log",    "job" = "package_manager", "app" = "apt",  "log_type" = "packages"},
+    { __path__ = "/var/log/dpkg.log", "job" = "package_manager", "app" = "dpkg", "log_type" = "packages" },
+    { __path__ = "/var/log/apt/history.log", "job" = "package_manager", "app" = "apt", "log_type" = "packages" },
+    { __path__ = "/var/log/apt/term.log", "job" = "package_manager", "app" = "apt", "log_type" = "packages" },
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
@@ -35,8 +35,8 @@ loki.source.file "apt_logs" {
 // Boot & system logs: always available on any Linux server
 loki.source.file "boot_logs" {
   targets = [
-    {__path__ = "/var/log/alternatives.log", "job" = "system", "app" = "alternatives", "log_type" = "system"},
-    {__path__ = "/var/log/fontconfig.log",   "job" = "system", "app" = "fontconfig",   "log_type" = "system"},
+    { __path__ = "/var/log/alternatives.log", "job" = "system", "app" = "alternatives", "log_type" = "system" },
+    { __path__ = "/var/log/fontconfig.log", "job" = "system", "app" = "fontconfig", "log_type" = "system" },
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
@@ -45,8 +45,8 @@ loki.source.file "boot_logs" {
 // Crucial for security auditing
 loki.source.file "auth_logs" {
   targets = [
-    {__path__ = "/var/log/auth.log",   "job" = "security", "app" = "auth",   "log_type" = "auth"},
-    {__path__ = "/var/log/syslog",     "job" = "system",   "app" = "syslog", "log_type" = "syslog"},
+    { __path__ = "/var/log/auth.log", "job" = "security", "app" = "auth", "log_type" = "auth" },
+    { __path__ = "/var/log/syslog", "job" = "system", "app" = "syslog", "log_type" = "syslog" },
   ]
   forward_to = [loki.process.system_logs.receiver]
 }
@@ -86,41 +86,41 @@ discovery.relabel "docker_logs" {
   // container = bare container name (strip leading slash)
   rule {
     source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
-    target_label  = "container"
+    regex = "/(.*)"
+    target_label = "container"
   }
 
   // app = same as container (for dashboard template variable compatibility)
   rule {
     source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
-    target_label  = "app"
+    regex = "/(.*)"
+    target_label = "app"
   }
 
   // job = same as container (for Loki query grouping)
   rule {
     source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
-    target_label  = "job"
+    regex = "/(.*)"
+    target_label = "job"
   }
 
   // stream = stdout or stderr
   rule {
     source_labels = ["__meta_docker_container_log_stream"]
-    target_label  = "stream"
+    target_label = "stream"
   }
 
   // image_name label for extra context
   rule {
     source_labels = ["__meta_docker_container_image"]
-    target_label  = "image"
+    target_label = "image"
   }
 }
 
 // Read logs from discovered Docker containers
 loki.source.docker "docker_logs" {
-  host       = "unix:///var/run/docker.sock"
-  targets    = discovery.relabel.docker_logs.output
+  host = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.docker_logs.output
   forward_to = [loki.process.docker_logs.receiver]
 }
 
@@ -177,9 +177,10 @@ loki.write "server" {
 prometheus.scrape "docker_metrics" {
   targets = [
     // Docker daemon exposes its own metrics on port 9323
-    {"__address__" = "localhost:9323", "job" = "docker", "host" = env("NODE_HOSTNAME")},
+    // Explicitly set 'instance' so Prometheus uses the hostname instead of 'localhost:9323'
+    { "__address__" = "localhost:9323", "job" = "docker", "host" = env("NODE_HOSTNAME"), "instance" = env("NODE_HOSTNAME") },
   ]
-  forward_to      = [prometheus.relabel.add_labels.receiver]
+  forward_to = [prometheus.relabel.add_labels.receiver]
   scrape_interval = "30s"
 }
 
@@ -189,12 +190,12 @@ prometheus.relabel "add_labels" {
 
   rule {
     target_label = "environment"
-    replacement  = env("ENVIRONMENT")
+    replacement = env("ENVIRONMENT")
   }
 
   rule {
     target_label = "collector"
-    replacement  = "alloy"
+    replacement = "alloy"
   }
 }
 

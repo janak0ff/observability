@@ -38,7 +38,7 @@ services:
   # PROMETHEUS
   # ===================================================
   prometheus:
-    image: prom/prometheus:v3.0.1
+    image: prom/prometheus:latest
     container_name: prometheus
     restart: unless-stopped
     volumes:
@@ -81,7 +81,7 @@ services:
   # GRAFANA
   # ===================================================
   grafana:
-    image: grafana/grafana:11.4.0
+    image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
     labels:
@@ -121,7 +121,7 @@ services:
   # LOKI
   # ===================================================
   loki:
-    image: grafana/loki:3.3.2
+    image: grafana/loki:latest
     container_name: loki
     restart: unless-stopped
     labels:
@@ -156,7 +156,7 @@ services:
   # ALERTMANAGER
   # ===================================================
   alertmanager:
-    image: prom/alertmanager:v0.28.0
+    image: prom/alertmanager:latest
     container_name: alertmanager
     restart: unless-stopped
     labels:
@@ -166,8 +166,7 @@ services:
     ports:
       - "${ALERTMANAGER_PORT:-9093}:9093"
     volumes:
-      # Mount config read-only as a template
-      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tmpl:ro
+      - ./alertmanager/alertmanager.yml.tmpl:/etc/alertmanager/alertmanager.yml.tmpl:ro
       - ./alertmanager/templates:/etc/alertmanager/templates:ro
       - alertmanager_data:/alertmanager
     entrypoint: /bin/sh
@@ -175,6 +174,7 @@ services:
       - -c
       - |
         # Render the config template with environment variables using sed
+        # Alpine Linux does not have envsubst, so sed is the most reliable way
         sed -e "s|\$${SMTP_FROM}|$${SMTP_FROM}|g" \
             -e "s|\$${SMTP_AUTH_USERNAME}|$${SMTP_AUTH_USERNAME}|g" \
             -e "s|\$${SMTP_AUTH_PASSWORD}|$${SMTP_AUTH_PASSWORD}|g" \
@@ -182,7 +182,6 @@ services:
             -e "s|\$${REPEAT_INTERVAL}|$${REPEAT_INTERVAL}|g" \
             /etc/alertmanager/alertmanager.yml.tmpl > /etc/alertmanager/alertmanager.yml
         
-        # Start Alertmanager with the rendered config
         exec /bin/alertmanager \
           --config.file=/etc/alertmanager/alertmanager.yml \
           --storage.path=/alertmanager \
