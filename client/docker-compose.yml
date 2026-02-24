@@ -173,3 +173,36 @@ services:
   #     - observability
   #   profiles:
   #     - redis
+
+  # ============================================================
+  # MONGODB EXPORTER
+  # Exposes MongoDB metrics for Prometheus
+  # MongoDB is installed as a binary on the host OS, not in Docker.
+  # The exporter reaches it via host.docker.internal.
+  #
+  # Prerequisites on the host MongoDB:
+  #   Create a monitoring user with the clusterMonitor role:
+  #     db.createUser({ user: "exporter",
+  #                     pwd:  "<password>",
+  #                     roles: [{ role: "clusterMonitor", db: "admin" },
+  #                             { role: "read",           db: "local"  }] })
+  #
+  # Enable with:
+  #   docker compose --profile mongodb up -d mongodb-exporter
+  # ============================================================
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.48.0
+    container_name: mongodb-exporter
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      # Use localhost instead of host.docker.internal since we are on the host network
+      - MONGODB_URI=${MONGODB_URI:-mongodb://127.0.0.1:27017}
+    command:
+      - "--collect-all"
+      - "--compatible-mode"
+      - "--discovering-mode"
+      # explicitly bind to the expected port since we are on the host network
+      - "--web.listen-address=:${MONGODB_EXPORTER_PORT:-9216}"
+    profiles:
+      - mongodb

@@ -101,6 +101,11 @@ scrape_configs:
         target_label: job
         replacement: 'jenkins'
 
+      - source_labels: [__address__]
+        regex: '.+:9216'
+        target_label: job
+        replacement: 'mongodb_exporter'
+
       # Jenkins Prometheus Plugin exposes metrics at /prometheus, not /metrics
       - source_labels: [__address__]
         regex: '.+:8080'
