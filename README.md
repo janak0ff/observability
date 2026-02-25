@@ -2,22 +2,23 @@
 
 > A complete, production-ready client-server monitoring solution powered by Prometheus, Grafana, Loki, and Alertmanager.
 
-## 📖 Overview
+## Overview
 
 This repository provides a fully Dockerized, pre-configured observability stack for monitoring distributed infrastructure. It enforces a robust **Client-Server architecture** where lightweight agents on client nodes collect telemetry (metrics and logs) and securely transmit them to a central monitoring server for aggregation, visualization, and alerting.
 
-## ✨ Features
+## Features
 
 - **Holistic Monitoring:** Collect hardware, OS, and process-level metrics seamlessly across all nodes.
 - **Centralized Log Management:** Unify application, system, and container logs directly into Loki via Grafana Alloy.
 - **Dynamic Service Discovery:** Automatically discover and scrape AWS EC2 instances utilizing resource tags, or securely add on-premise nodes via centralized scripts.
 - **Deep Container Insights:** Leverage active monitoring of Docker daemons and containers inside the stack via cAdvisor.
 - **Extensible App Exporters:** Included out-of-the-box support for Nginx, Jenkins, PostgreSQL, MySQL, Redis, and MongoDB metrics.
-- **Scalable Log Storage:** Native support for securely archiving and retaining Loki logs on AWS S3 buckets.
-- **Intelligent Alerting:** Ready-to-use Alertmanager integration with dynamic email routing for critical thresholds (e.g., High CPU, High Memory).
+- **Scalable Log Storage:** Native support for securely archiving and retaining Loki logs on AWS S3 buckets, with easy switching between local filesystem and AWS S3 storage.
+- **Single Point of Control:** Manage all major configuration, routing, and access control settings easily from a central `.env` file.
+- **Intelligent Alerting:** Ready-to-use Alertmanager integration with dynamic email routing. Receive immediate notifications for critical thresholds such as Node Down or High System Resource Usage. Supports both **Firing** alerts when an issue occurs, and **Resolved** alerts when the system recovers.
 - **Curated Dashboards:** Pre-populated with an extensive suite of highly-detailed, battle-tested Grafana dashboards for immediate insight.
 
-## 🏗️ Technical Architecture
+## Technical Architecture
 
 ```mermaid
 graph TD
@@ -65,7 +66,7 @@ graph TD
     NginxProxy --> Grafana
 ```
 
-## 🛠️ Tools & Technologies Used
+## Tools & Technologies Used
 
 - **[Prometheus](https://prometheus.io/)**: Open-source systems monitoring and alerting toolkit serving as the metrics backend.
 - **[Grafana](https://grafana.com/)**: Multi-platform open-source analytics and interactive visualization web application.
@@ -74,7 +75,7 @@ graph TD
 - **[Grafana Alloy](https://grafana.com/oss/alloy/)**: Flexible, high-performance telemetry collector (replacing Promtail) used here to capture logs and Docker metrics.
 - **[Docker Compose](https://docs.docker.com/compose/)**: Underpins the deployment structure for isolated, reproducible environments.
 
-## 📚 Documentation Guides
+## Documentation Guides
 
 Detailed, step-by-step documentation is provided in the `docs/` directory. **Start here for your deployment.**
 
@@ -82,8 +83,25 @@ Detailed, step-by-step documentation is provided in the `docs/` directory. **Sta
 2. **[Client Setup Guide](docs/client-guide.md)**: Instructions for deploying telemetry agents on your application, web, or database nodes.
 3. **[AWS Integration Guide](docs/aws-guide.md)**: Setup advanced cloud features, including storing Loki logs in S3 and utilizing EC2 tags for automatic Service Discovery.
 4. **[Nginx Monitoring Guide](docs/setup-nginx.md)**: Concrete steps for exposing detailed Nginx metrics directly to the stack.
+5. **[Node Scripts Guide](docs/scripts-guide.md)**: Detailed instructions on adding and removing client targets centrally via scripts.
 
-## 🚀 Quick Access Points
+## Node Management (Quick Scripts)
+
+For environments not utilizing AWS EC2 automated discovery, client nodes rely on File Service Discovery. Manage these centrally via scripts on the Monitor server (from the `server/` directory):
+
+**Add a monitored node:**
+```bash
+./scripts/add-node.sh <IP_ADDRESS> <HOSTNAME> [ENVIRONMENT] [--nginx] [--jenkins]
+```
+
+**Remove a monitored node:**
+```bash
+./scripts/remove-node.sh <HOSTNAME>
+```
+
+> *Prometheus auto-detects these changes within 30 seconds. No restart necessary.*
+
+## Quick Access Points
 
 Once deployed, the following services and health-check endpoints will be available. Adjust `localhost` to your server's public IP or Domain as necessary.
 
@@ -96,7 +114,7 @@ Once deployed, the following services and health-check endpoints will be availab
 | **Alertmanager** Web UI | `http://localhost:9093` | - |
 | **Alloy UI** (On Client Node)| `http://<client-ip>:12345` | - |
 
-## 📊 Pre-Loaded Dashboard Library
+## Pre-Loaded Dashboard Library
 
 This stack is provisioned immediately upon startup with multiple essential Grafana dashboards. You won't need to build from scratch.
 
