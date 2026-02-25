@@ -1,52 +1,112 @@
-Access Points:
+# Observability Stack
 
-Grafana: http://localhost:3000 (admin / your-password)
-Prometheus: http://localhost:9090
-Loki: http://localhost:3100
-Alertmanager: http://localhost:9093
-Alloy UI: http://localhost:12345
-Logs from client35	http://54.152.52.171:3000
-Loki health check	http://54.152.52.171:3100/ready
-Loki's own metrics	http://54.152.52.171:3100/metrics
-Prometheus targets	http://54.152.52.171:9090/targets
-Alloy metrics (on client)	http://{client_ip}:12345/metrics
-Node exporter (on client)	http://{client_ip}:9100/metrics
+> A complete, production-ready client-server monitoring solution powered by Prometheus, Grafana, Loki, and Alertmanager.
 
+## 📖 Overview
 
+This repository provides a fully Dockerized, pre-configured observability stack for monitoring distributed infrastructure. It enforces a robust **Client-Server architecture** where lightweight agents on client nodes collect telemetry (metrics and logs) and securely transmit them to a central monitoring server for aggregation, visualization, and alerting.
 
-Essential Grafana Dashboards:
-- Full Node Exporter : 1860
-- Jenkins: Performance and Health Overview: 9964
-- Nginx Dashboard → ID: 12708
-- SSH Logs : 17514
-- Global SSH Logs View : 21750
-- Logs / App : 13639
-- Docker Container : 11600
-- cAdvisor Docker Insights : 19908
-- y0nei's cAdvisor dashboard : 19724
-- docker container & OS node(node_exporter, cadvisor) : 16314
-- MongoDB : 2583
+## ✨ Features
 
+- **Holistic Monitoring:** Collect hardware, OS, and process-level metrics seamlessly across all nodes.
+- **Centralized Log Management:** Unify application, system, and container logs directly into Loki via Grafana Alloy.
+- **Dynamic Service Discovery:** Automatically discover and scrape AWS EC2 instances utilizing resource tags, or securely add on-premise nodes via centralized scripts.
+- **Deep Container Insights:** Leverage active monitoring of Docker daemons and containers inside the stack via cAdvisor.
+- **Extensible App Exporters:** Included out-of-the-box support for Nginx, Jenkins, PostgreSQL, MySQL, Redis, and MongoDB metrics.
+- **Scalable Log Storage:** Native support for securely archiving and retaining Loki logs on AWS S3 buckets.
+- **Intelligent Alerting:** Ready-to-use Alertmanager integration with dynamic email routing for critical thresholds (e.g., High CPU, High Memory).
+- **Curated Dashboards:** Pre-populated with an extensive suite of highly-detailed, battle-tested Grafana dashboards for immediate insight.
 
+## 🏗️ Technical Architecture
 
+```mermaid
+graph TD
+    subgraph Client Nodes [Client Instances]
+        direction TB
+        NodeExporter[Node Exporter <br/> OS Metrics]
+        ProcessExporter[Process Exporter <br/> Process Metrics]
+        cAdvisor[cAdvisor <br/> Container Metrics]
+        Alloy[Grafana Alloy <br/> Log & Docker Forwarder]
+        AppExporters[App Exporters <br/> Nginx, Jenkins, DBs]
+    end
 
-# Observability Stack - Client-Server Monitoring Solution
+    subgraph Central Server [Monitor Server]
+        direction TB
+        Prometheus[(Prometheus <br/> Time-Series DB)]
+        Loki[(Loki <br/> Log Aggregation)]
+        Alertmanager[Alertmanager <br/> Notifications]
+        Grafana[Grafana <br/> Visualization]
+        NginxProxy[Nginx <br/> Reverse Proxy / TLS]
+    end
 
-## Overview
-This is a complete, production-ready monitoring solution with client-server architecture. It includes Prometheus, Grafana, Loki, and Alertmanager on the server side, and various exporters on the client side.
+    %% Metrics Flow
+    Prometheus -->|Scrape :9100| NodeExporter
+    Prometheus -->|Scrape :9256| ProcessExporter
+    Prometheus -->|Scrape :9338| cAdvisor
+    Prometheus -->|Scrape Exporters| AppExporters
+    Alloy -->|Remote Write Metrics| Prometheus
 
-## Architecture
+    %% Log Flow
+    Alloy -->|Push Logs :3100| Loki
 
-### Server Components
-- **Prometheus**: Metrics collection and storage
-- **Grafana**: Visualization and dashboards
-- **Loki**: Log aggregation
-- **Alertmanager**: Alert handling and notification
+    %% Storage Flow
+    Loki -->|Archive Logs| S3[(AWS S3)]
 
-### Client Components
-- **Node Exporter**: System metrics (CPU, memory, disk, network)
-- **Alloy**: Log collection and forwarding
-- **Process Exporter**: Process-level monitoring
-- **Additional Exporters**: Nginx, Jenkins, PostgreSQL, MySQL, Redis (enabled via profiles)
+    %% Alert Flow
+    Prometheus -->|Fire Alerts :9093| Alertmanager
+    Alertmanager -->|SMTP Email / Slack| Admins([Admins])
 
+    %% Vis Flow
+    Grafana -->|Query PromQL| Prometheus
+    Grafana -->|Query LogQL| Loki
+    
+    %% User Flow
+    Users([Users]) -->|HTTPS :443| NginxProxy
+    NginxProxy --> Grafana
+```
 
+## 🛠️ Tools & Technologies Used
+
+- **[Prometheus](https://prometheus.io/)**: Open-source systems monitoring and alerting toolkit serving as the metrics backend.
+- **[Grafana](https://grafana.com/)**: Multi-platform open-source analytics and interactive visualization web application.
+- **[Loki](https://grafana.com/oss/loki/)**: Horizontally-scalable, highly-available, multi-tenant log aggregation system tailored to work wonderfully with Prometheus.
+- **[Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/)**: Routes and de-duplicates alerts generated by Prometheus.
+- **[Grafana Alloy](https://grafana.com/oss/alloy/)**: Flexible, high-performance telemetry collector (replacing Promtail) used here to capture logs and Docker metrics.
+- **[Docker Compose](https://docs.docker.com/compose/)**: Underpins the deployment structure for isolated, reproducible environments.
+
+## 📚 Documentation Guides
+
+Detailed, step-by-step documentation is provided in the `docs/` directory. **Start here for your deployment.**
+
+1. **[Server Setup Guide](docs/server-guide.md)**: Instructions for deploying the central Monitor server.
+2. **[Client Setup Guide](docs/client-guide.md)**: Instructions for deploying telemetry agents on your application, web, or database nodes.
+3. **[AWS Integration Guide](docs/aws-guide.md)**: Setup advanced cloud features, including storing Loki logs in S3 and utilizing EC2 tags for automatic Service Discovery.
+4. **[Nginx Monitoring Guide](docs/setup-nginx.md)**: Concrete steps for exposing detailed Nginx metrics directly to the stack.
+
+## 🚀 Quick Access Points
+
+Once deployed, the following services and health-check endpoints will be available. Adjust `localhost` to your server's public IP or Domain as necessary.
+
+| Service | Address | Default Credentials |
+|---------|---------------|-------------|
+| **Grafana** Web UI | `http://localhost:3000` | `admin` / configurable in `.env` |
+| **Prometheus** Web UI | `http://localhost:9090` | - |
+| **Prometheus** Targets | `http://localhost:9090/targets` | - |
+| **Loki** Ready Check | `http://localhost:3100/ready` | - |
+| **Alertmanager** Web UI | `http://localhost:9093` | - |
+| **Alloy UI** (On Client Node)| `http://<client-ip>:12345` | - |
+
+## 📊 Pre-Loaded Dashboard Library
+
+This stack is provisioned immediately upon startup with multiple essential Grafana dashboards. You won't need to build from scratch.
+
+- **Full Node Monitoring**: Node Exporter (ID: `1860`)
+- **Docker Environment**: cAdvisor OS Insights (ID: `16314`, `19908`, `19724`, `11600`)
+- **Web Infrastructure**: Nginx Dashboard (ID: `12708`)
+- **CI/CD Build Server**: Jenkins Performance and Health (ID: `9964`)
+- **Event Auditing**: Global SSH Logs (ID: `17514`, `21750`)
+- **Application Logs**: General Log Inspector (ID: `13639`)
+- **Database Tracking**: MongoDB (ID: `2583`)
+
+---
+*Developed and maintained for reliable infrastructure observability.*

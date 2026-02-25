@@ -1,209 +1,230 @@
 # Client Setup Guide
 
-## Prerequisites
+This guide provides a complete, step-by-step walkthrough for deploying the observability client stack on any Linux server (e.g., AWS EC2, on-premise).
 
+The client stack is responsible for gathering logs and metrics from the server it resides on and pushing them to a central monitoring server.
 
-#### Inbound Rules (From Server IP ONLY)
-Ports: `9100` (Node), `12345` (Alloy), `9256` (Process), `9338` (cAdvisor), `9113` (Nginx), `9506` (Jenkins)
+## Overview of Components
 
-#### Outbound Rules
-Ports: `3100` (Loki), `9090` (Prometheus)
-
-> [!IMPORTANT]
-> Deploy and verify the **server** before starting the client.
-
-
----
-
-## Transfer Files
-
-Run from your **local machine**:
-
-```bash
-rsync -avz -e "ssh -i ~/.ssh/labsuser.pem" /home/jack/Documents/observability/client/ ubuntu@34.230.91.8:~/observability/client/
-```
+The client stack consists of several lightweight containers:
+1. **Node Exporter**: Collects hardware and OS metrics (CPU, RAM, disk usage, network I/O).
+2. **Alloy**: Grafana's telemetry collector. It gathers logs (`/var/log/*`, Docker logs) and Docker daemon metrics, forwarding them to Loki and Prometheus.
+3. **Process Exporter**: Collects per-process metrics (CPU, memory, file descriptors).
+4. **cAdvisor**: Analyzes resource usage and performance of running Docker containers.
+5. *(Optional)* **Additional Exporters**: Nginx, Jenkins, PostgreSQL, MySQL, Redis.
 
 ---
 
-## Verify
+## 1. Prerequisites
 
-```bash
-# All 3 services should show Up
-docker compose ps
+Before installing the client stack, ensure the following network rules are configured on the client server's firewall (e.g., AWS Security Group).
 
-# Check Alloy started with no errors
-docker compose logs alloy | tail -n 10
+### Inbound Rules (From the Monitor Server IP ONLY)
+Allow the central Monitor server to reach these ports for scraping metrics. For security, restrict the source IP to your Monitor server's IP address.
 
-# Check exporters are responding
-curl -s http://localhost:9100/metrics | head -3   # node_exporter
-curl -s http://localhost:12345/metrics | head -3  # alloy
-curl -s http://localhost:9256/metrics | head -3   # process_exporter
-```
+| Port | Service | Purpose |
+|------|---------|---------|
+| `9100` | Node Exporter | OS/Hardware metrics |
+| `12345` | Alloy | Alloy's own metrics |
+| `9256` | Process Exporter | Per-process metrics |
+| `9338` | cAdvisor | Docker container metrics |
+| `9113` | Nginx Exporter | (Optional) Nginx metrics |
+| `9506` | Jenkins Exporter | (Optional) Jenkins metrics |
 
-### Verify from the SERVER side
+### Outbound Rules
+The client needs to send data (logs) to the central Monitor server.
 
-SSH into the server and confirm it can reach the client:
+| Port | Destination | Purpose |
+|------|-------------|---------|
+| `3100` | Monitor IP | Alloy forwarding logs to Loki |
+| `9090` | Monitor IP | Alloy remote-writing metrics to Prometheus |
+| `443` | `0.0.0.0/0` | Pulling Docker images from the internet |
 
-```bash
-ssh -i ~/.ssh/your-key.pem ubuntu@202.51.74.196
-
-curl -s http://34.230.91.8:9100/metrics | head -3
-curl -s http://34.230.91.8:12345/metrics | head -3
-curl -s http://34.230.91.8:9256/metrics | head -3
-```
-
+> [!IMPORTANT]  
+> Deploy and verify the **central Monitor server** before starting the client setup.
 
 ---
 
-## Common Commands
+## 2. Server Preparation
 
+Log in to the client server where you want to install the monitoring agents.
+
+### Step 2.1: Install Docker
+If Docker is not already installed, run the official installation script:
 ```bash
-docker compose ps                    # Status
-docker compose logs -f               # All logs
-docker compose logs -f alloy         # Alloy logs
-docker compose restart alloy         # Restart a service
-docker compose up -d                 # Apply config changes
-docker compose pull && docker compose up -d   # Update images
+curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker $USER && newgrp docker
 ```
 
-## Re-sync After Local Config Changes
+### Step 2.2: Enable Docker Daemon Metrics
+The client stack collects statistics about the Docker engine itself. By default, Docker does not expose these metrics. You **must explicitly enable them**.
 
+1. Create or update the Docker daemon config:
 ```bash
-# From local machine
-rsync -avz -e "ssh -i ~/.ssh/your-key.pem" \
-  --exclude '.env' \
-  /home/jack/Documents/observability/client/ \
-  ubuntu@34.230.91.8:~/observability/client/
-
-# Then on client
-docker compose up -d
-```
-
-## Adding This Client to More Servers
-
-If you deploy a second observability server and want this client to also ship logs to it, simply add another Loki endpoint in `configs/config.alloy`:
-
-```alloy
-loki.write "server2" {
-  endpoint {
-    url = "http://<NEW_SERVER_IP>:3100/loki/api/v1/push"
-  }
-}
-```
-
-## ⚠️ Important: Enable Docker Daemon Metrics
-
-The client observability stack collects statistics about the Docker engine itself. By default, Docker does not expose these metrics. You **must explicitly enable them** on every client node.
-
-Run these steps on the client server:
-
-```bash
-# 1. Create or update the Docker daemon config
 sudo tee /etc/docker/daemon.json << 'EOF'
 {
   "metrics-addr": "127.0.0.1:9323"
 }
 EOF
-
-# 2. Restart the Docker service to apply
-sudo systemctl restart docker
-
-# 3. Verify it is working:
-curl http://127.0.0.1:9323/metrics | head -n 5
 ```
 
-> **Note**: We bind to `127.0.0.1` intentionally. The Grafana Alloy container runs in host-network mode and scrapes this endpoint locally. Do not bind it to `0.0.0.0` or expose port 9323 to the internet.
+2. Restart the Docker service to apply the changes:
+```bash
+sudo systemctl restart docker
+```
+
+3. Verify it is working:
+```bash
+curl http://127.0.0.1:9323/metrics | head -n 5
+```
+> **Note**: We bind to `127.0.0.1` intentionally. The Grafana Alloy container runs in host-network mode (or accesses it via the host) and scrapes this endpoint locally. Do not expose port 9323 to the internet.
 
 ---
 
-## Testing Alerts (Manual Load Generation)
+## 3. Deployment
 
-If you want to intentionally trigger the **HighCPUUsage** and **HighMemoryUsage** alerts to verify your Alertmanager email routing, you can use `stress-ng` to temporarily peg the server's resources.
+### Step 3.1: Get the Source Code
+Clone the observability repository to the client server.
 
 ```bash
-# 1. Install the stress-ng utility
+git clone https://github.com/janak0ff/observability.git
+cd observability/client
+```
+
+*(Alternatively, you can `rsync` just the `client` directory from your local machine to the server.)*
+```bash
+# From your local machine:
+rsync -avz -e "ssh -i ~/.ssh/your-key.pem" /path/to/observability/client/ user@<CLIENT-IP>:~/observability/client/
+```
+
+### Step 3.2: Configure Environment Variables
+Create the environment file from the cloud template:
+
+```bash
+cp .env-cloud .env
+nano .env
+```
+
+Update the following critical variables in `.env`:
+- `NODE_HOSTNAME`: Provide a unique, recognizable name for this client (e.g., `web-server-01`, `db-node-qa`). This is how it will appear in Grafana.
+- `LOKI_URL`: Point this to your central Monitor server's Loki instance (e.g., `http://<MONITOR-IP>:3100/loki/api/v1/push`).
+- `PROMETHEUS_URL`: Point this to your central Monitor server's Prometheus instance (e.g., `http://<MONITOR-IP>:9090/api/v1/write`).
+- `ENVIRONMENT`: Set to match the environment (e.g., `production`, `staging`, `development`).
+
+### Step 3.3: Start the Stack
+Bring up the Docker Compose stack in detached mode:
+
+```bash
+docker compose --env-file .env up -d
+```
+
+---
+
+## 4. Verification
+
+### Step 4.1: Check Local Containers
+Ensure all containers started successfully without crash-looping:
+
+```bash
+# View running containers (should be 4 by default)
+docker compose ps
+
+# Check logs for errors (especially Alloy)
+docker compose logs alloy | tail -n 20
+```
+
+### Step 4.2: Test Exporter Endpoints locally
+Verify the exporters are actively serving metrics:
+
+```bash
+curl -s http://localhost:9100/metrics | head -3   # node_exporter
+curl -s http://localhost:12345/metrics | head -3  # alloy
+curl -s http://localhost:9256/metrics | head -3   # process_exporter
+curl -s http://localhost:9338/metrics | head -3   # cadvisor
+```
+
+### Step 4.3: Verify from the Monitor Server
+This is crucial. The central server must be able to reach the client.
+
+1. SSH into your **Monitor Server**.
+2. Run `curl` against the client's IP address:
+
+```bash
+# Replace <CLIENT-IP> with the actual IP address
+curl -s http://<CLIENT-IP>:9100/metrics | head -3
+```
+If this hangs or fails, your AWS Security Group inbound rules are incorrect on the client.
+
+---
+
+## 5. Adding the Client to the Monitor Server
+
+Once the client is running, you must tell the Prometheus server to start scraping it.
+
+1. SSH into the **Monitor Server**.
+2. Navigate to the server codebase.
+3. Run the helper script:
+
+```bash
+cd ~/observability/server
+
+# Usage: ./scripts/add-node.sh <CLIENT_IP> <HOSTNAME> [ENVIRONMENT]
+./scripts/add-node.sh 34.230.91.8 client-web-01 production
+```
+
+This updates `prometheus/targets/clients.json` automatically, and Prometheus will begin scraping within 30 seconds. No restart is required.
+
+---
+
+## 6. Testing Alerts (Manual Load Generation)
+
+If you want to intentionally trigger the **HighCPUUsage** and **HighMemoryUsage** alerts to verify your Alertmanager email routing, you can use `stress-ng` to temporarily peg the client server's resources.
+
+1. Install the utility:
+```bash
 sudo apt-get update && sudo apt-get install -y stress-ng
-
-# 2. Run a 10-minute stress test (75% CPU load across all cores, 75% RAM usage)
-stress-ng --cpu $(nproc) --cpu-load 75 --vm 1 --vm-bytes 75% --timeout 10m
 ```
 
-> **Note**: The Prometheus alerts are configured with a `for: 5m` duration. You must let this command run for at least 5 minutes before the alerts automatically transition from *Pending* to *Firing* and send you an email. You can press `Ctrl+C` at any time to abort the test early and resolve the alerts.
-
-
-
-The stress-ng test failed with **SIGILL (Illegal Instruction)** errors. This typically happens when stress-ng tries to use CPU instructions that aren't supported by your processor. Let's fix this and get your RAM test working properly.
-
-## **Quick Fix - Test RAM Only (Recommended)**
-
-Since you only want to test RAM usage above 80%, let's run just the memory test without the CPU stressors that are causing the errors:
-
-```bash
-stress-ng --vm 1 --vm-bytes 80% --timeout 10m
-```
-
-Or if you want to be more precise about exceeding 80%:
-
+2. Run a memory stress test (exceeding 80% RAM for 10 mins):
 ```bash
 stress-ng --vm 1 --vm-bytes 85% --timeout 10m
 ```
 
-## **Alternative Approaches That Will Work**
-
-### **Option 1: Use the original `stress` tool**
-```bash
-sudo apt-get install -y stress
-stress --vm 2 --vm-bytes 4G --vm-keep --timeout 600s
-```
-(Adjust the `--vm-bytes` value based on your total RAM)
-
-### **Option 2: Fix the stress-ng CPU issue**
-
-The SIGILL errors are happening because stress-ng is trying to use CPU-specific optimizations. Try these alternatives:
-
-**Disable CPU-specific optimizations:**
-```bash
-stress-ng --cpu 0 --vm 1 --vm-bytes 85% --timeout 10m
-```
-(This runs 0 CPU stressors, just the VM stressor)
-
-**Or specify a compatible CPU method:**
-```bash
-stress-ng --cpu $(nproc) --cpu-method bitops --vm 1 --vm-bytes 85% --timeout 10m
-```
-
-**Or run the RAM test in a simpler mode:**
-```bash
-stress-ng --vm 1 --vm-bytes 85% --vm-method all --timeout 10m
-```
-
-## **Monitor Your RAM Usage**
-
-In another terminal, run:
+3. Monitor the RAM usage in another terminal:
 ```bash
 watch -n 1 free -h
 ```
-or
+
+> **Note**: Prometheus alerts configured with `for: 5m` require the metrics to stay above the threshold for 5 continuous minutes before transitioning from *Pending* to *Firing* and sending an email. Press `Ctrl+C` to abort.
+
+---
+
+## 7. Useful Administration Commands
+
+**Apply config updates:**
+If you change `configs/config.alloy` or `.env`, run:
 ```bash
-htop
+docker compose up -d
+```
+Docker Compose detects the changes and recreates only the necessary containers.
+
+**Restart a single service:**
+```bash
+docker compose restart alloy
 ```
 
-## **Check Your System's RAM First**
-
-Before running the test, check your total RAM:
+**Update to latest Docker images:**
 ```bash
-free -h
+docker compose pull && docker compose up -d
 ```
 
-Then calculate 80% and use an appropriate value. For example, if you have 16GB total:
-```bash
-stress-ng --vm 1 --vm-bytes 13G --timeout 10m
+**Adding multiple Loki endpoints:**
+If you have multiple monitoring servers, Alloy can send logs to all of them. Edit `configs/config.alloy`:
+```alloy
+loki.write "server2" {
+  endpoint {
+    url = "http://<SECOND-MONITOR-IP>:3100/loki/api/v1/push"
+  }
+}
 ```
-
-**The simplest working command for you right now is:**
-```bash
-stress-ng --vm 1 --vm-bytes 85% --timeout 10m
-```
-
-This will use approximately 85% of your available RAM for 10 minutes without triggering the CPU issues.
+*(Remember to apply changes with `docker compose restart alloy`)*.
