@@ -241,3 +241,19 @@ jq '.[].labels.host' prometheus/targets/clients.json
 
 
 docker compose up -d --remove-orphans
+
+
+Start both nginx and jenkins exporters
+docker compose --profile nginx --profile jenkins up -d
+
+Adding a new node just one command:
+
+```bash
+./scripts/add-node.sh 34.230.91.8 client1
+```
+
+And listing all nodes:
+
+```bash
+jq '.[].labels.host' prometheus/targets/clients.json
+```
